@@ -4,6 +4,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { ScrapItem } from '../../types';
+import AppMain from '../../AppMain';
+import { MusicProvider } from '../../music/MusicStore';
 
 interface DiaryPreviewProps {
   diaryId: string | null;
@@ -15,7 +17,6 @@ const DiaryPreview: React.FC<DiaryPreviewProps> = ({ diaryId, onOpen }) => {
   const [previewData, setPreviewData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [scale, setScale] = useState(1.0); // 동적 scale 계산 (책 형태 고정 레이아웃)
-  const iframeRef = React.useRef<HTMLIFrameElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
 
   // 다이어리 데이터 로드
@@ -291,52 +292,18 @@ const DiaryPreview: React.FC<DiaryPreviewProps> = ({ diaryId, onOpen }) => {
           backfaceVisibility: 'hidden',
           willChange: 'transform',
         }}>
-          {/* 프리뷰 내용 - iframe으로 실제 다이어리 미니 모드 렌더링 */}
+          {/* 프리뷰 내용 - AppMain 직접 렌더링 */}
           <div style={{
             width: '100%',
             height: '100%',
             overflow: 'hidden',
             backgroundColor: '#f5f3f0',
+            pointerEvents: 'none', // 프리뷰는 읽기 전용
           }}>
             {previewData && diaryId ? (
-              <iframe
-                ref={iframeRef}
-                key={`diary-preview-${diaryId}-${Date.now()}`}
-                src={`${window.location.origin}?windowMode=overlay&diaryId=${diaryId}&preview=true&t=${Date.now()}`}
-                onLoad={() => {
-                  console.log('[DiaryPreview] iframe loaded, sending postMessage for', diaryId);
-                  
-                  // ✅ iframe 로드 완료 후 postMessage 전송 (여러 번 시도)
-                  const sendMessage = () => {
-                    if (iframeRef.current?.contentWindow) {
-                      const message = {
-                        type: 'DIARY_PREVIEW_DATA',
-                        data: previewData,
-                        diaryId: diaryId
-                      };
-                      console.log('[DiaryPreview] Sending postMessage:', message);
-                      iframeRef.current.contentWindow.postMessage(message, '*');
-                    }
-                  };
-                  
-                  // 즉시 전송 + 100ms, 300ms, 500ms 후 재시도 (iframe 렌더링 대기)
-                  sendMessage();
-                  setTimeout(sendMessage, 100);
-                  setTimeout(sendMessage, 300);
-                  setTimeout(sendMessage, 500);
-                }}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  border: 'none',
-                  pointerEvents: 'none',
-                  // ✅ 선명도 개선
-                  imageRendering: 'crisp-edges',
-                  transform: 'translateZ(0)', // GPU 가속
-                  backfaceVisibility: 'hidden',
-                }}
-                title="Diary Preview"
-              />
+              <MusicProvider>
+                <AppMain />
+              </MusicProvider>
             ) : (
               <div style={{ 
                 width: '100%',
