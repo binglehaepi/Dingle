@@ -114,10 +114,22 @@ export default defineConfig(({ mode }) => {
       build: {
         outDir: 'dist',
         emptyOutDir: true,
+        sourcemap: false, // 프로덕션에서는 sourcemap 비활성화
         rollupOptions: {
-          // Electron preload에서 사용할 수 있도록
-          external: ['electron']
-        }
+          external: ['electron'],
+          output: {
+            // Code splitting 최소화 (프로덕션 환경에서 chunk 로딩 실패 방지)
+            manualChunks: undefined,
+            // 에셋 파일명 간소화
+            assetFileNames: 'assets/[name].[ext]',
+            chunkFileNames: 'assets/[name].js',
+            entryFileNames: 'assets/[name].js',
+          }
+        },
+        // CSS 인라인화 (별도 파일이 아니라 JS에 포함하여 로딩 실패 방지)
+        cssCodeSplit: false,
+        // 에셋 크기 제한 증가 (큰 이미지도 포함)
+        assetsInlineLimit: 0
       }
     };
 });

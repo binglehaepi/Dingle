@@ -1,6 +1,8 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { STORAGE_KEY, TEXT_DATA_KEY, STYLE_PREF_KEY, LINK_DOCK_KEY } from './constants/appConstants';
 import { UpdateNotification } from './components/UpdateNotification';
+import AppMain from './AppMain';
+import DiaryManager from './components/DiaryManager';
 
 type WindowMode = 'app' | 'overlay';
 type DetectedMode = WindowMode | 'unknown';
@@ -79,15 +81,16 @@ const OverlayModeView: React.FC = () => {
         {/* React가 실제로 커밋되었음을 보장하는 마커(디버깅/검증용) */}
         <div id="overlay-ui-ready" style={{ display: 'none' }} />
         <Suspense fallback={null}>
-          <LazyAppMain />
+          <AppMain />
         </Suspense>
       </div>
     </div>
   );
 };
 
-const LazyAppMain = React.lazy(() => import('./AppMain'));
-const LazyDiaryManager = React.lazy(() => import('./components/DiaryManager'));
+// Static imports for production build reliability (no lazy loading issues)
+// const LazyAppMain = React.lazy(() => import('./AppMain'));
+// const LazyDiaryManager = React.lazy(() => import('./components/DiaryManager'));
 
 const App: React.FC = () => {
   const initial = (() => {
@@ -166,7 +169,7 @@ const App: React.FC = () => {
     <>
       <UpdateNotification />
       <Suspense fallback={null}>
-        <LazyDiaryManager />
+        <DiaryManager />
       </Suspense>
     </>
   );

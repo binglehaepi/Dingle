@@ -384,6 +384,7 @@ function getWindowOptions(mode: WindowMode): Electron.BrowserWindowConstructorOp
     contextIsolation: true, // ✅ 보안: Renderer와 Main 격리
     nodeIntegration: false, // ✅ 보안: Node.js API 비활성화
     sandbox: false, // preload에서 Node.js 필요
+    webSecurity: false, // ✅ SNS embed 스크립트 및 외부 리소스 허용 (Twitter, Instagram 등)
   };
 
   // preload 적용 여부를 로그로 확정(overlay에서 hasOverlayAlive=false 원인 분리)
@@ -923,6 +924,29 @@ if (gotLock) app.whenReady().then(async () => {
   // ✅ 기존 데이터 마이그레이션
   await migrateExistingDiary();
   
+  // ✅ SNS embed 및 외부 리소스 로딩 허용 (Twitter, Instagram 등)
+  const { session } = require('electron');
+  
+  try {
+    session.defaultSession.webRequest.onBeforeSendHeaders((details: any, callback: any) => {
+      // Twitter/Instagram embed 허용
+      callback({ requestHeaders: { ...details.requestHeaders, Origin: '*' } });
+    });
+
+    session.defaultSession.webRequest.onHeadersReceived((details: any, callback: any) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': ["default-src * 'unsafe-inline' 'unsafe-eval' data: blob:;"]
+        }
+      });
+    });
+    
+    console.log('[CSP] Content Security Policy relaxed for SNS embeds');
+  } catch (cspError) {
+    console.error('[CSP] Failed to set CSP:', cspError);
+  }
+
   appWin = await createWindow('app');
 
   // 🔄 자동 업데이트 설정 및 시작
@@ -1517,16 +1541,42 @@ ipcMain.handle('diary:save', async (_event, diaryId: string, data: any) => {
 });
 
 ipcMain.handle('diary:openInOverlay', async (_event, diaryId: string) => {
+  console.log('[IPC] diary:openInOverlay called', { diaryId, currentMode: overlayWin ? 'has overlay' : 'no overlay' });
+  
   try {
-    console.log('[diary] Opening in overlay:', diaryId);
     currentDiaryId = diaryId;
+    console.log('[IPC] Set currentDiaryId:', currentDiaryId);
     
     // mini 모드로 전환 (overlay 열기)
+    console.log('[IPC] Calling setDisplayModeInternal("mini")...');
     const result = await setDisplayModeInternal('mini');
+    console.log('[IPC] setDisplayModeInternal result:', { 
+      mode: result.mode, 
+      hasAppWin: !!(appWin && !appWin.isDestroyed()),
+      hasOverlayWin: !!(overlayWin && !overlayWin.isDestroyed())
+    });
     
+    if (overlayWin) {
+      try {
+        console.log('[IPC] overlayWin state:', {
+          id: overlayWin.id,
+          isVisible: overlayWin.isVisible(),
+          isDestroyed: overlayWin.isDestroyed(),
+          isMinimized: overlayWin.isMinimized(),
+          bounds: overlayWin.getBounds(),
+          alwaysOnTop: overlayAlwaysOnTop
+        });
+      } catch (stateError) {
+        console.error('[IPC] Failed to get overlayWin state:', stateError);
+      }
+    } else {
+      console.error('[IPC] ❌ overlayWin is null after setDisplayModeInternal!');
+    }
+    
+    console.log('[IPC] ✅ diary:openInOverlay completed successfully');
     return { success: true, mode: result.mode };
   } catch (error) {
-    console.error('diary:openInOverlay failed:', error);
+    console.error('[IPC] ❌ diary:openInOverlay failed:', error);
     return { success: false, error: String(error) };
   }
 });

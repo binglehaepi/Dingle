@@ -28,8 +28,21 @@ const DiaryPreview: React.FC<DiaryPreviewProps> = ({ diaryId, onOpen }) => {
     console.log('[DiaryPreview] Loading preview for diary:', diaryId);
 
     const loadPreview = async () => {
+      console.log('[DiaryPreview] Starting load...', { 
+        diaryId, 
+        hasElectron: !!window.electron,
+        hasDiaryLoad: !!(window.electron?.diaryLoad)
+      });
+      
       if (!window.electron) {
-        console.error('[DiaryPreview] window.electron not available');
+        console.error('[DiaryPreview] ❌ window.electron not available');
+        alert('❌ [DiaryPreview] Electron API를 사용할 수 없습니다.\n\n앱을 재시작해주세요.');
+        return;
+      }
+      
+      if (!window.electron.diaryLoad) {
+        console.error('[DiaryPreview] ❌ window.electron.diaryLoad not available');
+        alert('❌ [DiaryPreview] diaryLoad API를 사용할 수 없습니다.\n\npreload 스크립트가 제대로 로드되지 않았을 수 있습니다.');
         return;
       }
       
@@ -37,22 +50,30 @@ const DiaryPreview: React.FC<DiaryPreviewProps> = ({ diaryId, onOpen }) => {
       setPreviewData(null); // ✅ 이전 데이터 즉시 초기화 (깜빡임 방지)
       
       try {
+        console.log('[DiaryPreview] Calling window.electron.diaryLoad...');
         const result = await window.electron.diaryLoad(diaryId);
-        console.log('[DiaryPreview] ✅ Load result:', {
+        console.log('[DiaryPreview] Load result:', {
           success: result.success,
           itemCount: result.data?.items?.length || 0,
           hasStylePref: !!result.data?.stylePref,
+          hasTextData: !!result.data?.textData,
+          hasLinkDock: !!result.data?.linkDockItems,
           diaryId: diaryId
         });
         
         if (result.success && result.data) {
-          console.log('[DiaryPreview] Setting preview data with', result.data.items?.length || 0, 'items');
+          console.log('[DiaryPreview] ✅ Data loaded successfully:', {
+            items: result.data.items?.length || 0,
+            style: result.data.stylePref ? 'present' : 'missing'
+          });
           setPreviewData(result.data);
         } else {
           console.error('[DiaryPreview] ❌ Load failed:', result.error);
+          alert(`❌ [DiaryPreview] 다이어리 로드 실패:\n\n${result.error || '알 수 없는 오류'}`);
         }
       } catch (error) {
         console.error('[DiaryPreview] ❌ Exception:', error);
+        alert(`❌ [DiaryPreview] 오류 발생:\n\n${String(error)}\n\n개발자 도구(F12)를 열어 자세한 정보를 확인하세요.`);
       } finally {
         setLoading(false);
       }
