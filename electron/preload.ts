@@ -128,6 +128,11 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.removeListener(channel, callback);
   },
   
+  // --- IPC Send (창 드래그 등) ---
+  send: (channel: string, ...args: any[]) => {
+    ipcRenderer.send(channel, ...args);
+  },
+  
   // --- 파일 대화상자 (추가) ---
   saveDialog: (options: any) => ipcRenderer.invoke('saveDialog', options),
   writeFile2: (filePath: string, content: string) => ipcRenderer.invoke('writeFile', filePath, content),

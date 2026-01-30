@@ -55,7 +55,7 @@ let isQuitting = false;
 let forceCloseOverlayWin = false;
 const modeByWebContentsId = new Map<number, WindowMode>();
 let overlayLocked = false;
-let overlayAlwaysOnTop = true;
+let overlayAlwaysOnTop = false; // 기본적으로 일반 창처럼 동작
 
 let overlayAliveTimer: NodeJS.Timeout | null = null;
 let overlayAwaitingRendererAlive = false; // "보이게 하는 트리거" 상태만 의미 (destroy 기준 아님)
@@ -159,9 +159,9 @@ function isCurrentOverlayWin(win: BrowserWindow, localGen: number) {
 console.log('[main] pid=', process.pid);
 
 // overlay 기본 시작 크기(항상 이 값으로 시작)
-// L사이즈 기준 (1400x860)
-const OVERLAY_DEFAULT_W = 1400;
-const OVERLAY_DEFAULT_H = 860;
+// L사이즈 기준 (1500x920) - 택이 잘리지 않도록 크기 증가
+const OVERLAY_DEFAULT_W = 1500;
+const OVERLAY_DEFAULT_H = 920;
 const OVERLAY_ASPECT = OVERLAY_DEFAULT_W / OVERLAY_DEFAULT_H;
 const OVERLAY_MIN_W = 930;
 const OVERLAY_MIN_H = Math.round(OVERLAY_MIN_W / OVERLAY_ASPECT);
