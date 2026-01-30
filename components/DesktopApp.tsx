@@ -579,7 +579,7 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
 
           {/* Side Tabs (Indices) - Desktop only */}
           {!isMobile && (
-            <div className="absolute top-8 -right-8 flex flex-col gap-1 z-0">
+            <div className="absolute top-8 -right-8 flex flex-col gap-1 z-0 relative">
               {MONTHS.map((m, i) => (
                 <button 
                   key={m}
@@ -665,6 +665,68 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                   <path fillRule="evenodd" d="M20.599 1.5c-.376 0-.743.111-1.055.32l-5.08 3.385a18.747 18.747 0 00-3.471 2.987 10.04 10.04 0 014.815 4.815 18.748 18.748 0 002.987-3.472l3.386-5.079A1.902 1.902 0 0020.599 1.5zm-8.3 14.025a18.76 18.76 0 001.896-1.207 8.026 8.026 0 00-4.513-4.513A18.75 18.75 0 008.475 11.7l-.278.5a5.26 5.26 0 013.601 3.602l.502-.278zM6.75 13.5A3.75 3.75 0 003 17.25a1.5 1.5 0 01-1.601 1.497.75.75 0 00-.7 1.123 5.25 5.25 0 009.8-2.62 3.75 3.75 0 00-3.75-3.75z" clipRule="evenodd" />
                 </svg>
               </button>
+
+              {/* Slide Panel - 월별 탭 위에서 슬라이드 */}
+              {activePanel && (
+                <div 
+                  className={`absolute top-0 w-[320px] rounded-r-md border border-l-0 shadow-xl transition-all duration-300 ease-in-out overflow-y-auto ${
+                    activePanel ? 'right-[-320px]' : 'right-full'
+                  }`}
+                  style={{
+                    backgroundColor: 'var(--month-tab-bg-active)',
+                    borderColor: 'var(--month-tab-border-color, var(--ui-stroke-color, #764737))',
+                    color: 'var(--month-tab-text-color)',
+                    height: `${DESIGN_HEIGHT}px`,
+                  }}
+                >
+                  {activePanel === 'settings' && (
+                    <SettingsPanel
+                      onClose={() => setActivePanel(null)}
+                      onExportPDF={() => {
+                        setExportFormat('pdf');
+                        setShowExportOptions(true);
+                      }}
+                      onOpenBackup={() => setShowBackupManager(true)}
+                      onManualSave={handleSaveLayout}
+                    />
+                  )}
+                  {activePanel === 'ui' && (
+                    <UIPanel
+                      onClose={() => setActivePanel(null)}
+                      onApplyTheme={(theme) => {
+                        setDiaryStyle(prev => ({
+                          ...prev,
+                          uiPalette: theme.uiPalette,
+                          uiTokens: theme.uiTokens,
+                        }));
+                        setToastMsg(`${theme.name} 테마 적용됨!`);
+                        setTimeout(() => setToastMsg(''), 1500);
+                      }}
+                      onShowAdvanced={() => {
+                        setShowPaletteEditor(true);
+                        setActivePanel(null);
+                      }}
+                      stickers={diaryStyle.stickers || []}
+                      onStickerAdd={(sticker) => {
+                        setDiaryStyle(prev => ({
+                          ...prev,
+                          stickers: [...(prev.stickers || []), sticker],
+                        }));
+                        setToastMsg('스티커 추가됨!');
+                        setTimeout(() => setToastMsg(''), 1500);
+                      }}
+                      onStickerDelete={(stickerId) => {
+                        setDiaryStyle(prev => ({
+                          ...prev,
+                          stickers: (prev.stickers || []).filter(s => s.id !== stickerId),
+                        }));
+                        setToastMsg('스티커 삭제됨!');
+                        setTimeout(() => setToastMsg(''), 1500);
+                      }}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -757,52 +819,6 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
         </div>
       )}
 
-      {/* Slide Panels */}
-      {activePanel && (
-        <>
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black/20 z-[9998]"
-            onClick={() => setActivePanel(null)}
-          />
-          
-          {/* Panel */}
-          <div 
-            className={`fixed top-0 right-0 h-full w-[400px] z-[9999] shadow-2xl transition-transform duration-300 ease-in-out ${
-              activePanel ? 'translate-x-0' : 'translate-x-full'
-            }`}
-          >
-            {activePanel === 'settings' && (
-              <SettingsPanel
-                onClose={() => setActivePanel(null)}
-                onExportPDF={() => {
-                  setExportFormat('pdf');
-                  setShowExportOptions(true);
-                }}
-                onOpenBackup={() => setShowBackupManager(true)}
-                onManualSave={handleSaveLayout}
-              />
-            )}
-            {activePanel === 'ui' && (
-              <UIPanel
-                onClose={() => setActivePanel(null)}
-                onApplyTheme={(theme) => {
-                  setDiaryStyle(prev => ({
-                    ...prev,
-                    uiPalette: theme.palette,
-                  }));
-                  setToastMsg(`${theme.name} 테마 적용됨!`);
-                  setTimeout(() => setToastMsg(''), 1500);
-                }}
-                onShowAdvanced={() => {
-                  setShowPaletteEditor(true);
-                  setActivePanel(null);
-                }}
-              />
-            )}
-          </div>
-        </>
-      )}
 
     </div>
   );

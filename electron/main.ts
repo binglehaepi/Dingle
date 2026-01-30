@@ -1682,6 +1682,67 @@ ipcMain.handle('font:upload', async () => {
   }
 });
 
+// --- 스티커 업로드 ---
+ipcMain.handle('sticker:upload', async () => {
+  if (!appWin) return { success: false, error: 'No window' };
+  
+  try {
+    const { filePaths, canceled } = await dialog.showOpenDialog(appWin, {
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg'] }],
+      properties: ['openFile']
+    });
+    
+    if (canceled || !filePaths[0]) {
+      return { success: false, canceled: true };
+    }
+    
+    const stickerPath = filePaths[0];
+    const stickerName = path.basename(stickerPath);
+    const stickerDir = path.join(app.getPath('userData'), 'stickers');
+    
+    if (!fsSync.existsSync(stickerDir)) {
+      fsSync.mkdirSync(stickerDir, { recursive: true });
+    }
+    
+    const destPath = path.join(stickerDir, `${Date.now()}-${stickerName}`);
+    fsSync.copyFileSync(stickerPath, destPath);
+    
+    // 썸네일 생성 (data URL)
+    const imageData = fsSync.readFileSync(destPath);
+    const base64 = imageData.toString('base64');
+    const ext = path.extname(stickerPath).toLowerCase();
+    const mimeType = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.gif' ? 'image/gif' : 'image/svg+xml';
+    const thumbnail = `data:${mimeType};base64,${base64}`;
+    
+    return { 
+      success: true, 
+      sticker: {
+        id: Date.now().toString(),
+        name: stickerName,
+        filePath: destPath,
+        thumbnail,
+        createdAt: Date.now()
+      }
+    };
+  } catch (error) {
+    console.error('[IPC] ❌ sticker:upload failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+// --- 스티커 삭제 ---
+ipcMain.handle('sticker:delete', async (_event, filePath: string) => {
+  try {
+    if (fsSync.existsSync(filePath)) {
+      fsSync.unlinkSync(filePath);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] ❌ sticker:delete failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
 ipcMain.handle('diary:exportToStaticHTML', async (_event, diaryId: string, options: {
   includeMonthlyCover?: boolean;
   includeEmbeds?: boolean;

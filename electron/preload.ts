@@ -51,6 +51,10 @@ contextBridge.exposeInMainWorld('electron', {
   // --- 폰트 ---
   fontUpload: () => ipcRenderer.invoke('font:upload'),
 
+  // --- 스티커 ---
+  stickerUpload: () => ipcRenderer.invoke('sticker:upload'),
+  stickerDelete: (filePath: string) => ipcRenderer.invoke('sticker:delete', filePath),
+
   // --- OhaAsa Horoscope ---
   ohaasaHoroscope: (params: { date: string; sign: string }) => ipcRenderer.invoke('ohaasa:horoscope', params),
 
@@ -215,6 +219,24 @@ export interface ElectronAPI {
     fontPath?: string;
     fontName?: string;
     canceled?: boolean;
+    error?: string;
+  }>;
+
+  // 스티커
+  stickerUpload: () => Promise<{
+    success: boolean;
+    sticker?: {
+      id: string;
+      name: string;
+      filePath: string;
+      thumbnail?: string;
+      createdAt: number;
+    };
+    canceled?: boolean;
+    error?: string;
+  }>;
+  stickerDelete: (filePath: string) => Promise<{
+    success: boolean;
     error?: string;
   }>;
 

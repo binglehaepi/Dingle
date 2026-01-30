@@ -164,6 +164,32 @@ export interface ElectronAPI {
     html?: string;
     error?: string;
   }>;
+
+  // 폰트 업로드
+  fontUpload: () => Promise<{
+    success: boolean;
+    filePath?: string;
+    canceled?: boolean;
+    error?: string;
+  }>;
+
+  // 스티커
+  stickerUpload: () => Promise<{
+    success: boolean;
+    sticker?: {
+      id: string;
+      name: string;
+      filePath: string;
+      thumbnail?: string;
+      createdAt: number;
+    };
+    canceled?: boolean;
+    error?: string;
+  }>;
+  stickerDelete: (filePath: string) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
 }
 
 declare global {

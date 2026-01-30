@@ -15,12 +15,12 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 }) => {
   return (
     <div className="h-full flex flex-col" style={{
-      backgroundColor: 'var(--widget-surface-background, #ffffff)',
-      color: 'var(--text-color-primary, #764737)',
+      backgroundColor: 'transparent',
+      color: 'var(--month-tab-text-color, #764737)',
     }}>
       {/* Header */}
       <div className="p-4 border-b flex items-center justify-between" style={{
-        borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+        borderColor: 'var(--month-tab-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
       }}>
         <h3 className="text-lg font-bold flex items-center gap-2">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">

@@ -436,6 +436,15 @@ export interface LayoutTextData {
   }
 }
 
+// Sticker data structure
+export interface Sticker {
+  id: string;
+  name: string;
+  filePath: string;  // 로컬 파일 경로
+  thumbnail?: string; // data URL
+  createdAt: number;
+}
+
 // Global Style Preferences
 export interface DiaryStyle {
   coverColor: string;
@@ -445,6 +454,7 @@ export interface DiaryStyle {
   fontId?: FontId; // 폰트 ID (기본값: 'noto')
   uiPalette?: UIPalette; // 사용자 정의 UI 색상 팔레트
   uiTokens?: UITokens; // 사용자 정의 UI 액션 토큰(Primary/Danger/Success/Sunday)
+  stickers?: Sticker[]; // 사용자 업로드 스티커 목록
   notePaperBackgroundImage?: string; // ✅ 노트 종이 바탕 이미지(DataURL)
   notePaperBackgroundFit?: 'contain' | 'cover' | 'zoom'; // ✅ 배경 이미지 맞춤 방식 (기본 contain)
   notePaperBackgroundZoom?: number; // ✅ zoom 모드일 때 확대/축소(%) (50~200, 기본 100)
