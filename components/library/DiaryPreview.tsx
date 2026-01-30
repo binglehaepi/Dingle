@@ -296,13 +296,13 @@ const DiaryPreview: React.FC<DiaryPreviewProps> = ({ diaryId, onOpen }) => {
           <div style={{
             width: '100%',
             height: '100%',
-            overflow: 'hidden',
+            overflow: 'auto', // 스크롤 허용으로 잘림 방지
             backgroundColor: '#f5f3f0',
             pointerEvents: 'none', // 프리뷰는 읽기 전용
           }}>
             {previewData && diaryId ? (
-              <MusicProvider>
-                <AppMain />
+              <MusicProvider key={diaryId}>
+                <AppMain key={diaryId} />
               </MusicProvider>
             ) : (
               <div style={{ 

@@ -232,18 +232,19 @@ function normalizeOverlayBounds(args: {
   return { x, y, width, height };
 }
 
-function applyOverlayContentAspect(win: BrowserWindow, reason: string) {
-  try {
-    if (!win || win.isDestroyed()) return;
-    const [w, h] = win.getSize();
-    const [cw, ch] = win.getContentSize();
-    const extra = { width: Math.max(0, w - cw), height: Math.max(0, h - ch) };
-    win.setAspectRatio(OVERLAY_ASPECT, extra);
-    console.log('[overlay] setAspectRatio', { reason, aspect: OVERLAY_ASPECT, extra });
-  } catch (e) {
-    console.log('[overlay] setAspectRatio failed', { reason, error: String(e) });
-  }
-}
+// ✅ aspectRatio 제거: 자유로운 크기 조절 허용
+// function applyOverlayContentAspect(win: BrowserWindow, reason: string) {
+//   try {
+//     if (!win || win.isDestroyed()) return;
+//     const [w, h] = win.getSize();
+//     const [cw, ch] = win.getContentSize();
+//     const extra = { width: Math.max(0, w - cw), height: Math.max(0, h - ch) };
+//     win.setAspectRatio(OVERLAY_ASPECT, extra);
+//     console.log('[overlay] setAspectRatio', { reason, aspect: OVERLAY_ASPECT, extra });
+//   } catch (e) {
+//     console.log('[overlay] setAspectRatio failed', { reason, error: String(e) });
+//   }
+// }
 
 // 단일 인스턴스 잠금 (유령창/다중 프로세스 방지)
 const gotLock = app.requestSingleInstanceLock();
@@ -520,19 +521,19 @@ async function createWindow(mode: WindowMode, opts?: { overlayGen?: number }) {
     try { win.setResizable(true); } catch { /* ignore */ }
     // ✅ 시작 크기 보험: 항상 동일한 시작 크기로 강제(리사이즈는 가능)
     try { win.setSize(OVERLAY_DEFAULT_W, OVERLAY_DEFAULT_H, false); } catch { /* ignore */ }
-    // ✅ 컨텐츠 비율 고정(best-effort). 프레임이 확정되면 ready-to-show 이후 1tick에서 재적용한다.
-    applyOverlayContentAspect(win, 'createWindow:init');
+    // ✅ aspectRatio 제거: 자유로운 크기 조절 허용
+    // applyOverlayContentAspect(win, 'createWindow:init');
 
-    // ✅ “절대적으로 유지” 보험: 상태 변화(스냅/최대화/전체화면) 시 extraSize 재계산 후 재적용
-    const reapply = (r: string) => {
-      if (localOverlayGen != null && !isCurrentOverlayWin(win, localOverlayGen)) return;
-      if (win.isDestroyed()) return;
-      try { setTimeout(() => applyOverlayContentAspect(win, r), 0); } catch { /* ignore */ }
-    };
-    win.on('maximize', () => reapply('maximize'));
-    win.on('unmaximize', () => reapply('unmaximize'));
-    win.on('enter-full-screen', () => reapply('enter-full-screen'));
-    win.on('leave-full-screen', () => reapply('leave-full-screen'));
+    // ✅ aspectRatio 관련 이벤트 리스너 제거
+    // const reapply = (r: string) => {
+    //   if (localOverlayGen != null && !isCurrentOverlayWin(win, localOverlayGen)) return;
+    //   if (win.isDestroyed()) return;
+    //   try { setTimeout(() => applyOverlayContentAspect(win, r), 0); } catch { /* ignore */ }
+    // };
+    // win.on('maximize', () => reapply('maximize'));
+    // win.on('unmaximize', () => reapply('unmaximize'));
+    // win.on('enter-full-screen', () => reapply('enter-full-screen'));
+    // win.on('leave-full-screen', () => reapply('leave-full-screen'));
 
     // ✅ “절대 비율 유지” (1550:860) - OS 리사이즈도 강제 보정 (resize 루프 방지 가드 포함)
     let lastBounds = win.getBounds();
@@ -649,8 +650,8 @@ async function createWindow(mode: WindowMode, opts?: { overlayGen?: number }) {
           // ignore
         }
       }
-      // ✅ 프레임/컨텐츠 사이즈 확정 후 extraSize 재계산해서 “컨텐츠 비율” 고정
-      try { setTimeout(() => applyOverlayContentAspect(win, 'ready-to-show:tick'), 0); } catch { /* ignore */ }
+      // ✅ aspectRatio 제거: 자유로운 크기 조절 허용
+      // try { setTimeout(() => applyOverlayContentAspect(win, 'ready-to-show:tick'), 0); } catch { /* ignore */ }
     });
   }
 
