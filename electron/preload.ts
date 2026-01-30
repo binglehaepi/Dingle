@@ -57,6 +57,31 @@ contextBridge.exposeInMainWorld('electron', {
   // --- 다이어리 관리 ---
   diaryCreate: (name: string, color: string, coverPattern?: string) =>
     ipcRenderer.invoke('diary:create', name, color, coverPattern),
+  diaryList: () => ipcRenderer.invoke('diary:list'),
+  diaryDelete: (diaryId: string) => ipcRenderer.invoke('diary:delete', diaryId),
+  diaryLoad: (diaryId: string) => ipcRenderer.invoke('diary:load', diaryId),
+  diarySave: (diaryId: string, data: any) => ipcRenderer.invoke('diary:save', diaryId, data),
+  diaryOpenInOverlay: (diaryId: string) => ipcRenderer.invoke('diary:openInOverlay', diaryId),
+  diaryGetCurrentId: () => ipcRenderer.invoke('diary:getCurrentId'),
+  diaryExportToStaticHTML: (diaryId: string, options: any) => ipcRenderer.invoke('diary:exportToStaticHTML', diaryId, options),
+
+  // --- 윈도우 관리 ---
+  windowSetDisplayMode: (mode: string) => ipcRenderer.invoke('window:setDisplayMode', mode),
+  windowOpenOverlayMode: () => ipcRenderer.invoke('window:openOverlayMode'),
+  windowCloseOverlayMode: () => ipcRenderer.invoke('window:closeOverlayMode'),
+  windowOpenNoteMode: () => ipcRenderer.invoke('window:openNoteMode'),
+  windowCloseNoteMode: () => ipcRenderer.invoke('window:closeNoteMode'),
+  windowSetClickThrough: (enabled: boolean) => ipcRenderer.invoke('window:setClickThrough', enabled),
+  windowFocusAppMode: () => ipcRenderer.invoke('window:focusAppMode'),
+  windowGetMode: () => ipcRenderer.invoke('window:getMode'),
+  windowMinimize: () => ipcRenderer.invoke('window:minimize'),
+  windowClose: () => ipcRenderer.invoke('window:close'),
+
+  // --- 오버레이 관리 ---
+  overlaySetLocked: (locked: boolean) => ipcRenderer.invoke('overlay:setLocked', locked),
+  overlaySetAlwaysOnTop: (on: boolean) => ipcRenderer.invoke('overlay:setAlwaysOnTop', on),
+  overlayGetState: () => ipcRenderer.invoke('overlay:getState'),
+  overlayGetBounds: () => ipcRenderer.invoke('overlay:getBounds'),
 
   // --- dingel-media (No-Copy local media) ---
   registerMediaImportRoot: (params: { importId: string; importRoot: string }) =>
@@ -181,6 +206,31 @@ export interface ElectronAPI {
     diaryId?: string;
     error?: string;
   }>;
+  diaryList: () => Promise<{ success: boolean; diaries?: any[]; error?: string }>;
+  diaryDelete: (diaryId: string) => Promise<{ success: boolean; error?: string }>;
+  diaryLoad: (diaryId: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+  diarySave: (diaryId: string, data: any) => Promise<{ success: boolean; error?: string }>;
+  diaryOpenInOverlay: (diaryId: string) => Promise<{ success: boolean; error?: string }>;
+  diaryGetCurrentId: () => Promise<string | null>;
+  diaryExportToStaticHTML: (diaryId: string, options: any) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+
+  // 윈도우 관리
+  windowSetDisplayMode: (mode: string) => Promise<void>;
+  windowOpenOverlayMode: () => Promise<void>;
+  windowCloseOverlayMode: () => Promise<void>;
+  windowOpenNoteMode: () => Promise<void>;
+  windowCloseNoteMode: () => Promise<void>;
+  windowSetClickThrough: (enabled: boolean) => Promise<void>;
+  windowFocusAppMode: () => Promise<void>;
+  windowGetMode: () => Promise<string>;
+  windowMinimize: () => Promise<void>;
+  windowClose: () => Promise<void>;
+
+  // 오버레이 관리
+  overlaySetLocked: (locked: boolean) => Promise<void>;
+  overlaySetAlwaysOnTop: (on: boolean) => Promise<void>;
+  overlayGetState: () => Promise<{ locked: boolean; alwaysOnTop: boolean }>;
+  overlayGetBounds: () => Promise<{ x: number; y: number; width: number; height: number }>;
 
   // dingel-media
   registerMediaImportRoot: (params: { importId: string; importRoot: string }) => Promise<{ success: boolean; error?: string }>;
