@@ -54,6 +54,10 @@ contextBridge.exposeInMainWorld('electron', {
   // --- 외부 링크 열기 ---
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
 
+  // --- 다이어리 관리 ---
+  diaryCreate: (name: string, color: string, coverPattern?: string) =>
+    ipcRenderer.invoke('diary:create', name, color, coverPattern),
+
   // --- dingel-media (No-Copy local media) ---
   registerMediaImportRoot: (params: { importId: string; importRoot: string }) =>
     ipcRenderer.invoke('dingelMedia:registerImportRoot', params),
@@ -170,6 +174,13 @@ export interface ElectronAPI {
 
   // 외부 링크
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
+
+  // 다이어리 관리
+  diaryCreate: (name: string, color: string, coverPattern?: string) => Promise<{
+    success: boolean;
+    diaryId?: string;
+    error?: string;
+  }>;
 
   // dingel-media
   registerMediaImportRoot: (params: { importId: string; importRoot: string }) => Promise<{ success: boolean; error?: string }>;

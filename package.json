@@ -1,11 +1,11 @@
 {
-  "name": "digitalscrapdiary",
-  "productName": "Digital Scrap Diary",
-  "version": "1.0.0",
+  "name": "dingle",
+  "productName": "Dingle",
+  "version": "1.0.1",
   "description": "A digital scrapbook diary app with auto-save, backup history, and advanced export features",
   "author": {
-    "name": "Digital Scrap Diary Team",
-    "email": "support@digitalscrapdiary.app"
+    "name": "Dingle Team",
+    "email": "support@dingle.app"
   },
   "license": "MIT",
   "private": true,

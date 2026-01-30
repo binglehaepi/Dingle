@@ -1,6 +1,6 @@
 {
-  "appId": "com.digitalscrapdiary.app",
-  "productName": "Digital Scrap Diary",
+  "appId": "com.dingle.app",
+  "productName": "Dingle",
   "copyright": "Copyright © 2025",
   "asar": true,
   "directories": {
@@ -70,7 +70,7 @@
         "arch": ["x64"]
       }
     ],
-    "publisherName": "Digital Scrap Diary Team",
+    "publisherName": "Dingle Team",
     "verifyUpdateCodeSignature": false
   },
   "linux": {
