@@ -15,22 +15,22 @@ import { migrateScrapItemsDecoration } from '../utils/itemMigrations';
 // 📁 파일 경로 관리
 // ═══════════════════════════════════════════════════════
 
-// 현재 열린 다이어리 ID (overlay에서 사용)
-let _currentDiaryId: string | null = null;
-
-/**
- * 현재 다이어리 ID 설정
- */
-export function setCurrentDiaryId(diaryId: string | null) {
-  _currentDiaryId = diaryId;
-  console.log('[fileStorage] Current diary ID set to:', diaryId);
-}
-
 /**
  * 현재 다이어리 ID 가져오기
+ * Main 프로세스의 currentDiaryId를 IPC를 통해 가져옴
  */
-export function getCurrentDiaryId(): string | null {
-  return _currentDiaryId;
+export async function getCurrentDiaryId(): Promise<string | null> {
+  if (!window.electron || !window.electron.diaryGetCurrentId) {
+    return null;
+  }
+  
+  try {
+    const result = await window.electron.diaryGetCurrentId();
+    return result.diaryId;
+  } catch (error) {
+    console.error('[fileStorage] Failed to get current diary ID:', error);
+    return null;
+  }
 }
 
 /**
@@ -44,14 +44,32 @@ export async function getCurrentDiaryPath(): Promise<string> {
   }
 
   const paths = await window.electron.getPaths();
+  const currentId = await getCurrentDiaryId();
   
   // overlay에서 특정 다이어리를 열었으면 그 파일 사용
-  if (_currentDiaryId) {
-    return `${paths.diaryDir}/diary-${_currentDiaryId}.json`;
+  if (currentId) {
+    // Windows 호환: path separator 수정
+    console.log('[fileStorage] Using diary file for ID:', currentId);
+    return joinPath(paths.diaryDir, `diary-${currentId}.json`);
   }
   
   // 기본: current.json (기존 호환)
-  return `${paths.diaryDir}/current.json`;
+  console.log('[fileStorage] Using default current.json');
+  return joinPath(paths.diaryDir, 'current.json');
+}
+
+/**
+ * 크로스 플랫폼 경로 결합 헬퍼
+ * Windows에서도 작동하도록 경로 구분자를 적절히 처리
+ */
+function joinPath(...parts: string[]): string {
+  // Windows 환경 감지
+  const isWindows = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
+  const separator = isWindows ? '\\' : '/';
+  
+  return parts
+    .map(part => part.replace(/[\\/]+$/, '')) // 끝의 슬래시 제거
+    .join(separator);
 }
 
 /**
@@ -63,7 +81,7 @@ export async function getDiaryPath(diaryId: string): Promise<string> {
   }
 
   const paths = await window.electron.getPaths();
-  return `${paths.diaryDir}/diary-${diaryId}.json`;
+  return joinPath(paths.diaryDir, `diary-${diaryId}.json`);
 }
 
 /**
@@ -75,7 +93,7 @@ export async function getMetadataPath(): Promise<string> {
   }
 
   const paths = await window.electron.getPaths();
-  return `${paths.diaryDir}/metadata.json`;
+  return joinPath(paths.diaryDir, 'metadata.json');
 }
 
 /**
@@ -87,7 +105,7 @@ export async function getBackupDir(): Promise<string> {
   }
 
   const paths = await window.electron.getPaths();
-  return `${paths.diaryDir}/backups`;
+  return joinPath(paths.diaryDir, 'backups');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -165,7 +183,7 @@ export async function saveDiaryToFile(
       // metadata 업데이트: keyring 동기화
       try {
         const metadata = await loadMetadata();
-        const diaryId = getCurrentDiaryId() || 'default';
+        const diaryId = (await getCurrentDiaryId()) || 'default';
         const diaryIndex = metadata.diaries.findIndex(d => d.id === diaryId);
         
         if (diaryIndex >= 0) {
@@ -269,7 +287,7 @@ export async function createBackup(): Promise<{ success: boolean; backupPath?: s
     // 백업 파일명 생성 (timestamp)
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const backupDir = await getBackupDir();
-    const backupPath = `${backupDir}/diary-${timestamp}.json`;
+    const backupPath = joinPath(backupDir, `diary-${timestamp}.json`);
 
     // 현재 파일 읽기
     const readResult = await window.electron.readFile(currentPath);
@@ -393,7 +411,7 @@ export async function listBackups(): Promise<BackupInfo[]> {
     
     for (const fileName of backupFiles) {
       try {
-        const filePath = `${backupDir}/${fileName}`;
+        const filePath = joinPath(backupDir, fileName);
         const result = await window.electron.readFile(filePath);
         
         if (result.success && result.data) {

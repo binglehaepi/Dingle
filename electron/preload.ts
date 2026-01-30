@@ -73,14 +73,16 @@ contextBridge.exposeInMainWorld('electron', {
   windowCloseNoteMode: () => ipcRenderer.invoke('window:closeNoteMode'),
   windowSetClickThrough: (enabled: boolean) => ipcRenderer.invoke('window:setClickThrough', enabled),
   windowFocusAppMode: () => ipcRenderer.invoke('window:focusAppMode'),
-  windowGetMode: () => ipcRenderer.invoke('window:getMode'),
-  windowMinimize: () => ipcRenderer.invoke('window:minimize'),
-  windowClose: () => ipcRenderer.invoke('window:close'),
+  getWindowMode: () => ipcRenderer.invoke('window:getMode'),
+  minimize: () => ipcRenderer.invoke('window:minimize'),
+  close: () => ipcRenderer.invoke('window:close'),
 
   // --- 오버레이 관리 ---
-  overlaySetLocked: (locked: boolean) => ipcRenderer.invoke('overlay:setLocked', locked),
+  overlayRendererAlive: () => ipcRenderer.send('overlay:rendererAlive'),
+  sendOverlayUiReady: () => ipcRenderer.send('overlay:uiReady'),
+  setOverlayLocked: (locked: boolean) => ipcRenderer.invoke('overlay:setLocked', locked),
+  getOverlayState: () => ipcRenderer.invoke('overlay:getState'),
   overlaySetAlwaysOnTop: (on: boolean) => ipcRenderer.invoke('overlay:setAlwaysOnTop', on),
-  overlayGetState: () => ipcRenderer.invoke('overlay:getState'),
   overlayGetBounds: () => ipcRenderer.invoke('overlay:getBounds'),
 
   // --- dingel-media (No-Copy local media) ---
@@ -117,6 +119,18 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.on('update:error', (_event, error) => callback(error));
     return () => ipcRenderer.removeListener('update:error', callback);
   },
+  
+  // --- 이벤트 리스너 (범용) ---
+  on: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.on(channel, callback);
+  },
+  off: (channel: string, callback: (...args: any[]) => void) => {
+    ipcRenderer.removeListener(channel, callback);
+  },
+  
+  // --- 파일 대화상자 (추가) ---
+  saveDialog: (options: any) => ipcRenderer.invoke('saveDialog', options),
+  writeFile2: (filePath: string, content: string) => ipcRenderer.invoke('writeFile', filePath, content),
 });
 // ═══════════════════════════════════════════════════════
 // 📝 TypeScript 타입 정의
@@ -211,8 +225,8 @@ export interface ElectronAPI {
   diaryLoad: (diaryId: string) => Promise<{ success: boolean; data?: any; error?: string }>;
   diarySave: (diaryId: string, data: any) => Promise<{ success: boolean; error?: string }>;
   diaryOpenInOverlay: (diaryId: string) => Promise<{ success: boolean; error?: string }>;
-  diaryGetCurrentId: () => Promise<string | null>;
-  diaryExportToStaticHTML: (diaryId: string, options: any) => Promise<{ success: boolean; filePath?: string; error?: string }>;
+  diaryGetCurrentId: () => Promise<{ success: boolean; diaryId: string | null }>;
+  diaryExportToStaticHTML: (diaryId: string, options: any) => Promise<{ success: boolean; html?: string; error?: string }>;
 
   // 윈도우 관리
   windowSetDisplayMode: (mode: string) => Promise<void>;
@@ -222,15 +236,17 @@ export interface ElectronAPI {
   windowCloseNoteMode: () => Promise<void>;
   windowSetClickThrough: (enabled: boolean) => Promise<void>;
   windowFocusAppMode: () => Promise<void>;
-  windowGetMode: () => Promise<string>;
-  windowMinimize: () => Promise<void>;
-  windowClose: () => Promise<void>;
+  getWindowMode: () => Promise<string>;
+  minimize: () => Promise<{ success: boolean }>;
+  close: () => Promise<{ success: boolean }>;
 
   // 오버레이 관리
-  overlaySetLocked: (locked: boolean) => Promise<void>;
-  overlaySetAlwaysOnTop: (on: boolean) => Promise<void>;
-  overlayGetState: () => Promise<{ locked: boolean; alwaysOnTop: boolean }>;
-  overlayGetBounds: () => Promise<{ x: number; y: number; width: number; height: number }>;
+  overlayRendererAlive: () => void;
+  sendOverlayUiReady: () => void;
+  setOverlayLocked: (locked: boolean) => Promise<{ locked: boolean }>;
+  getOverlayState: () => Promise<{ open: boolean; locked: boolean; alwaysOnTop: boolean }>;
+  overlaySetAlwaysOnTop: (on: boolean) => Promise<{ alwaysOnTop: boolean }>;
+  overlayGetBounds: () => Promise<{ x: number; y: number; width: number; height: number } | null>;
 
   // dingel-media
   registerMediaImportRoot: (params: { importId: string; importRoot: string }) => Promise<{ success: boolean; error?: string }>;
@@ -246,6 +262,14 @@ export interface ElectronAPI {
   onUpdateDownloadProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void;
   onUpdateDownloaded: (callback: (info: { version: string; releaseNotes?: string }) => void) => () => void;
   onUpdateError: (callback: (error: { message: string }) => void) => () => void;
+  
+  // 범용 이벤트 리스너
+  on: (channel: string, callback: (...args: any[]) => void) => void;
+  off: (channel: string, callback: (...args: any[]) => void) => void;
+  
+  // 추가 파일 대화상자
+  saveDialog: (options: any) => Promise<{ canceled: boolean; filePath?: string }>;
+  writeFile2: (filePath: string, content: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {
