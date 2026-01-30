@@ -1,0 +1,1378 @@
+import React, { useEffect, useRef, useState } from 'react';
+import { ScrapItem, LayoutTextData, LinkDockItem } from '../../types';
+import { compressImage } from '../../services/imageUtils';
+import { formatDateKey } from '../../utils/dateHelpers';
+import LinkDock from '../LinkDock';
+import MarqueeField from '../calendar/MarqueeField';
+import { useMusicStore } from '../../music/MusicStore';
+import { fetchOhaasa, getSignLabelKo, OHAASA_SIGNS, OHAASA_X_URL, type OhaasaResult, type OhaasaSignId } from '../../services/ohaasa';
+import ExternalLinkModal from '../ExternalLinkModal';
+
+interface MonthlySpreadProps {
+  currentDate: Date;
+  items: ScrapItem[];
+  textData: LayoutTextData;
+  onDateClick: (date: Date) => void;
+  onWeekSelect: (date: Date) => void;
+  onUpdateText: (key: string, field: string, value: string) => void;
+  viewMode?: 'left' | 'right' | 'both';
+  onYearChange?: (year: number) => void;
+
+  // 🔗 Link Dock (optional, desktop MVP)
+  linkDockItems?: LinkDockItem[];
+  setLinkDockItems?: React.Dispatch<React.SetStateAction<LinkDockItem[]>>;
+  onInsertLinksToDate?: (dateKey: string, urls: string[]) => Promise<(string | null)[]>;
+  onAddPhotoToDate?: (dateKey: string, file: File) => Promise<string | null> | string | null | void;
+}
+
+const MonthlySpread: React.FC<MonthlySpreadProps> = ({
+  currentDate,
+  items,
+  textData,
+  onDateClick,
+  onWeekSelect,
+  onUpdateText,
+  viewMode = 'both',
+  onYearChange,
+  linkDockItems,
+  setLinkDockItems,
+  onInsertLinksToDate,
+  onAddPhotoToDate,
+}) => {
+  const isSpreadView = viewMode === 'both';
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  
+  const dashboardKey = `${year}-${String(month + 1).padStart(2, '0')}-DASHBOARD`;
+  const currentData = textData[dashboardKey] || {};
+
+  // --- Calendar Grid: 6×7 (42칸) 고정 ---
+  const monthStart = new Date(year, month, 1);
+  const gridStart = new Date(monthStart);
+  // weekStartsOn: 0 (Sunday)
+  gridStart.setDate(monthStart.getDate() - monthStart.getDay());
+
+  const days = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    const isInMonth = d.getFullYear() === year && d.getMonth() === month;
+    return { date: d, isInMonth };
+  });
+
+  // Refs
+  const profileImageRef = useRef<HTMLInputElement>(null);
+  const musicCoverInputRef = useRef<HTMLInputElement>(null);
+  const dDayBgImageRef = useRef<HTMLInputElement>(null);
+  const cdBodyBgImageRef = useRef<HTMLInputElement>(null);
+  const bucketBgImageRef = useRef<HTMLInputElement>(null);
+  const monthHeaderBgRef = useRef<HTMLInputElement>(null);
+  const dowInputRefs = {
+    sun: useRef<HTMLInputElement>(null),
+    mon: useRef<HTMLInputElement>(null),
+    tue: useRef<HTMLInputElement>(null),
+    wed: useRef<HTMLInputElement>(null),
+    thu: useRef<HTMLInputElement>(null),
+    fri: useRef<HTMLInputElement>(null),
+    sat: useRef<HTMLInputElement>(null),
+  };
+
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [goalInput, setGoalInput] = useState('');
+  const [bucketInput, setBucketInput] = useState('');
+  const [showDdayDatePicker, setShowDdayDatePicker] = useState(false);
+
+  // 🔮 OhaAsa Horoscope
+  const OHAASA_SIGN_KEY = 'dingel:ohaasa:selectedSign';
+  const [ohaasaSign, setOhaasaSign] = useState<OhaasaSignId>(() => {
+    try {
+      const saved = localStorage.getItem(OHAASA_SIGN_KEY) as OhaasaSignId | null;
+      if (saved && OHAASA_SIGNS.some((s) => s.id === saved)) return saved;
+    } catch {
+      // ignore
+    }
+    return 'aries';
+  });
+  const [ohaasaResult, setOhaasaResult] = useState<OhaasaResult | null>(null);
+  const [ohaasaError, setOhaasaError] = useState<string>('');
+  const [ohaasaLoading, setOhaasaLoading] = useState(false);
+  const [ohaasaOpen, setOhaasaOpen] = useState(false);
+  const ohaasaRef = useRef<HTMLDivElement | null>(null);
+  const [ohaasaLinkModalOpen, setOhaasaLinkModalOpen] = useState(false);
+  const [ohaasaLinkModalUrl, setOhaasaLinkModalUrl] = useState<string>('');
+
+  const isTranslationFailed = (res: OhaasaResult | null) => {
+    if (!res) return true;
+    if ((res as any).translationError === true) return true;
+    if ((res as any).translated === false) return true;
+    if (!res.textKo || !res.textKo.trim()) return true;
+    return false;
+  };
+
+  useEffect(() => {
+    if (!ohaasaOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      const el = ohaasaRef.current;
+      if (!el) return;
+      if (e.target && el.contains(e.target as Node)) return;
+      setOhaasaOpen(false);
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [ohaasaOpen]);
+  
+  // 🎵 Persistent Music (Global)
+  const music = useMusicStore();
+
+  const getVideoId = (url: string) => {
+      if (!url) return null;
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+      const match = url.match(regExp);
+      return (match && match[2].length === 11) ? match[2] : null;
+  };
+  
+  const videoId = getVideoId(currentData.musicUrl || '');
+  const isThisTrackPlaying = !!videoId && music.provider === 'youtube' && music.videoId === videoId && music.isPlaying;
+
+  const handleCdClick = (e: React.MouseEvent | React.TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!videoId) {
+          musicCoverInputRef.current?.click();
+      } else {
+          // If different track is selected, switch then play
+          if (music.videoId !== videoId) {
+              music.setTrack(videoId);
+              music.play();
+          } else {
+              music.toggle();
+          }
+      }
+  };
+
+  // D-Day Logic
+  const calculateDDay = () => {
+      if (!currentData.dDayDate) return "D-?";
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const target = new Date(currentData.dDayDate);
+      target.setHours(0,0,0,0);
+      const diff = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff === 0) return "D-Day";
+      if (diff > 0) return `D-${diff}`;
+      return `D+${Math.abs(diff)}`;
+  };
+
+  // Image Upload Handlers
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    if (e.target.files && e.target.files[0]) {
+      try {
+          const result = await compressImage(e.target.files[0], 600, 0.7);
+          onUpdateText(dashboardKey, field, result);
+      } catch (err) {
+          console.error("Image upload failed", err);
+      }
+    }
+  };
+
+  const handleLinkSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+          const url = (e.target as HTMLInputElement).value;
+          onUpdateText(dashboardKey, 'musicUrl', url);
+          
+          const id = getVideoId(url);
+          if (id) {
+              const thumbUrl = `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
+              onUpdateText(dashboardKey, 'photoUrl', thumbUrl);
+              // ✅ set current track for persistent player (no autoplay here)
+              music.setTrack(id);
+          }
+          
+          setShowLinkInput(false);
+      }
+  };
+
+  const handleOhaasaFetch = async (opts?: { force?: boolean }) => {
+    setOhaasaError('');
+    const todayKey = formatDateKey(new Date());
+    const cacheKey = `dingel:ohaasa:cache:${todayKey}:${ohaasaSign}`;
+    if (!opts?.force) {
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const parsed = JSON.parse(cached) as OhaasaResult;
+          if (parsed?.rank) {
+            setOhaasaResult(parsed);
+            return;
+          }
+        }
+      } catch {
+        // ignore cache parse
+      }
+    }
+
+    setOhaasaLoading(true);
+    try {
+      const result = await fetchOhaasa({ date: todayKey, sign: ohaasaSign });
+      setOhaasaResult(result);
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(result));
+      } catch {
+        // ignore
+      }
+    } catch {
+      setOhaasaError('불러오기 실패');
+      setOhaasaResult(null);
+    } finally {
+      setOhaasaLoading(false);
+    }
+  };
+
+  // Goals Management (Checklist - same format as Bucket List)
+  const parseGoalsList = () => {
+      const raw = currentData.goals || '';
+      const lines = raw.split('\n');
+      
+      return lines
+          .map(line => {
+              const checkMatch = line.match(/^- \[([ x])\] (.+)$/);
+              if (checkMatch) {
+                  return { completed: checkMatch[1] === 'x', text: checkMatch[2] };
+              }
+              if (line.trim()) {
+                  return { completed: false, text: line.trim() };
+              }
+              return null;
+          })
+          .filter(Boolean) as { completed: boolean; text: string }[];
+  };
+
+  const saveGoalsList = (items: { completed: boolean; text: string }[]) => {
+      const formatted = items.map(item => `- [${item.completed ? 'x' : ' '}] ${item.text}`).join('\n');
+      onUpdateText(dashboardKey, 'goals', formatted);
+  };
+
+  const goals = parseGoalsList();
+  
+  const handleAddGoal = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && goalInput.trim()) {
+          e.stopPropagation();
+          const newItems = [...goals, { completed: false, text: goalInput.trim() }];
+          saveGoalsList(newItems);
+          setGoalInput('');
+      }
+  };
+
+  const toggleGoalItem = (index: number, e: React.MouseEvent) => {
+      e.stopPropagation();
+      const newItems = goals.map((item, i) => 
+          i === index ? { ...item, completed: !item.completed } : item
+      );
+      saveGoalsList(newItems);
+  };
+
+  // Bucket List Management (Task Format)
+  const parseBucketList = () => {
+      const raw = currentData.bucketList || '';
+      const lines = raw.split('\n');
+      
+      return lines
+          .map(line => {
+              const checkMatch = line.match(/^- \[([ x])\] (.+)$/);
+              if (checkMatch) {
+                  return { completed: checkMatch[1] === 'x', text: checkMatch[2] };
+              }
+              if (line.trim()) {
+                  return { completed: false, text: line.trim() };
+              }
+              return null;
+          })
+          .filter(Boolean) as { completed: boolean; text: string }[];
+  };
+
+  const saveBucketList = (items: { completed: boolean; text: string }[]) => {
+      const formatted = items.map(item => `- [${item.completed ? 'x' : ' '}] ${item.text}`).join('\n');
+      onUpdateText(dashboardKey, 'bucketList', formatted);
+  };
+
+  const bucketItems = parseBucketList();
+
+  const handleAddBucketItem = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && bucketInput.trim()) {
+          e.stopPropagation();
+          const newItems = [...bucketItems, { completed: false, text: bucketInput.trim() }];
+          saveBucketList(newItems);
+          setBucketInput('');
+      }
+  };
+
+  const toggleBucketItem = (index: number, e: React.MouseEvent) => {
+      e.stopPropagation();
+      const newItems = bucketItems.map((item, i) => 
+          i === index ? { ...item, completed: !item.completed } : item
+      );
+      saveBucketList(newItems);
+  };
+
+  // Calendar Cell Renderer
+  const renderCell = (date: Date, isInMonth: boolean) => {
+      const dateStr = formatDateKey(date);
+      const dayItems = items.filter(i => i.diaryDate === dateStr);
+      const isToday = new Date().toDateString() === date.toDateString();
+      
+      const mainItem = dayItems.find(i => i.isMainItem);
+      const coverImage = textData[dateStr]?.coverImage;
+      
+      const handleDragOver = (e: React.DragEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.currentTarget.classList.add('ring-2', 'ring-purple-400', 'ring-inset', 'bg-purple-50/50');
+      };
+      
+      const handleDragLeave = (e: React.DragEvent) => {
+          e.preventDefault();
+          e.currentTarget.classList.remove('ring-2', 'ring-purple-400', 'ring-inset', 'bg-purple-50/50');
+      };
+      
+      const handleDrop = async (e: React.DragEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.currentTarget.classList.remove('ring-2', 'ring-purple-400', 'ring-inset', 'bg-purple-50/50');
+          
+          const files = Array.from(e.dataTransfer.files) as File[];
+          const imageFile = files.find((f: File) => f.type.startsWith('image/'));
+          
+          if (imageFile) {
+              try {
+                  const dataURL = await compressImage(imageFile, 400, 0.7);
+                  onUpdateText(dateStr, 'coverImage', dataURL);
+              } catch (err) {
+                  console.error('Image drop failed', err);
+              }
+          }
+      };
+      
+      const displayImage = coverImage || (mainItem?.metadata?.imageUrl);
+      
+      return (
+        <div 
+          data-ui="calendar-cell"
+          data-diary-date={dateStr}
+          data-in-month={isInMonth ? 'true' : 'false'}
+          {...(isToday ? { 'data-today-cell': 'true' } : {})}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDateClick(date);
+          }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onTouchStart={(e) => {
+            e.currentTarget.style.transform = 'scale(0.98)';
+          }}
+          onTouchEnd={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+          className="relative p-0.5 w-full h-full cursor-pointer transition-all group/cell flex flex-col gap-0.5 overflow-hidden touch-manipulation"
+          style={{
+            backgroundColor: isToday
+              ? 'var(--calendar-today-highlight-bg, #FFFCE1)'
+              : isInMonth
+                ? 'var(--calendar-cell-background, #ffffff)'
+                : '#ffffff'
+          }}
+        >
+            {/* hover 시 은은한 오버레이 */}
+            <div className="absolute inset-0 opacity-0 group-hover/cell:opacity-100 transition-opacity bg-black/5 z-0"></div>
+            
+            {displayImage ? (
+                <>
+                    <div className="absolute inset-1 rounded-sm overflow-hidden z-0">
+                        <img 
+                            src={displayImage} 
+                            alt="day cover" 
+                            className="w-full h-full object-cover opacity-90 mix-blend-multiply transition-transform group-hover/cell:scale-105 duration-300" 
+                        />
+                    </div>
+                    <span
+                      className="relative z-10 text-[9px] font-mono font-bold ml-0.5 px-1.5 py-0.5 rounded bg-white/70"
+                      style={{ color: 'var(--text-color-primary, #764737)', opacity: isInMonth ? 1 : 0.35 }}
+                    >
+                      {date.getDate()}
+                    </span>
+                </>
+            ) : (
+                <>
+                    <span
+                        className="text-[9px] font-mono font-bold ml-1"
+                        style={{ color: 'var(--text-color-primary, #764737)', opacity: isInMonth ? 1 : 0.35 }}
+                    >
+                        {date.getDate()}
+                    </span>
+                    
+                    <div className="flex flex-wrap gap-0.5 content-start">
+                        {dayItems.slice(0, 3).map(item => (
+                            <div key={item.id} className="w-1.5 h-1.5 rounded-full bg-purple-400 opacity-70"></div>
+                        ))}
+                        {dayItems.length > 3 && (
+                            <span className="text-[8px] leading-none" style={{ color: 'var(--text-color-primary, #764737)', opacity: 0.5 }}>+</span>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+      );
+  };
+
+  // --- Generate fixed 6×7 Grid (42) ---
+  const weeks: { date: Date; isInMonth: boolean }[][] = [];
+  for (let i = 0; i < 42; i += 7) {
+    weeks.push(days.slice(i, i + 7));
+  }
+
+  const dowKeys = ['dowSunBg', 'dowMonBg', 'dowTueBg', 'dowWedBg', 'dowThuBg', 'dowFriBg', 'dowSatBg'];
+  const dowRefs = [dowInputRefs.sun, dowInputRefs.mon, dowInputRefs.tue, dowInputRefs.wed, dowInputRefs.thu, dowInputRefs.fri, dowInputRefs.sat];
+
+  return (
+    <>
+      {/* --- Left Page (Dashboard Area) --- */}
+      {(viewMode === 'both' || viewMode === 'left') && (
+      <div
+        data-note-paper="left"
+        className={`${isSpreadView ? '' : 'note-paper-surface '}flex-1 border-r relative flex flex-col p-8 gap-4 overflow-hidden`}
+        style={{
+          backgroundColor: isSpreadView ? 'transparent' : 'var(--note-paper-background, #f7f5ed)',
+          backgroundImage: isSpreadView ? 'none' : undefined,
+          borderRightColor: 'var(--note-center-fold-line-color, rgba(148, 163, 184, 0.3))',
+          borderRightWidth: '2px',
+        }}
+      >
+         <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none z-0">
+             <span
+                className="font-handwriting text-4xl rotate-[-10deg]"
+                style={{ color: 'var(--text-color-primary, #764737)' }}
+             >
+                Dashboard
+             </span>
+         </div>
+         
+         <div className="relative z-10 w-full h-full flex flex-col gap-4">
+            
+            {/* Top Row: Profile (1/3) & Goals (2/3) */}
+            <div className="flex gap-4 h-[35%]">
+                {/* 프로필 위젯: 세로 2단 구조 (정사각형 사진 + 직사각형 텍스트) */}
+                <div data-widget="profile" className="w-[30%] border flex flex-col backdrop-blur-[1px] overflow-hidden" style={{ borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))', backgroundColor: 'var(--widget-surface-background, #ffffff)' }}>
+                    {/* Bar에서 이름 수정 */}
+                    <input 
+                        data-widget-bar
+                        className="flex-shrink-0 bg-transparent text-center outline-none text-sm py-1"
+                        style={{ background: 'var(--profile-header-bar-bg, #F9D4F0)', borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))' }}
+                        value={currentData.profileName || ''}
+                        onChange={(e) => onUpdateText(dashboardKey, 'profileName', e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="Name"
+                    />
+                    {/* 세로 2단 레이아웃 */}
+                    <div className="flex-1 flex flex-col p-3 gap-2">
+                        {/* 상단 2/3: 정사각형 사진 슬롯 */}
+                        <div 
+                            className="flex-[2] w-full aspect-square cursor-pointer transition-all active:scale-[0.98] touch-manipulation overflow-hidden relative group/profile"
+                            style={{ borderRadius: '8px' }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                profileImageRef.current?.click();
+                            }}
+                            onTouchEnd={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                profileImageRef.current?.click();
+                            }}
+                        >
+                            {currentData.profileImage ? (
+                                <>
+                                    <img 
+                                        src={currentData.profileImage} 
+                                        alt="Profile" 
+                                        className="w-full h-full object-cover" 
+                                    />
+                                    {/* hover 시 은은한 오버레이 */}
+                                    <div className="absolute inset-0 opacity-0 group-hover/profile:opacity-100 transition-opacity bg-black/5 flex items-center justify-center">
+                                        <span className="text-xs drop-shadow-md" style={{ color: 'var(--text-color-primary, #764737)' }}>Change photo</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <div
+                                    className="w-full h-full flex items-center justify-center border relative"
+                                    style={{
+                                        backgroundColor: 'var(--widget-surface-background, #ffffff)',
+                                        borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))'
+                                    }}
+                                >
+                                    <span className="text-4xl opacity-30">👤</span>
+                                    {/* hover 시 은은한 오버레이 */}
+                                    <div className="absolute inset-0 opacity-0 group-hover/profile:opacity-100 transition-opacity bg-black/5"></div>
+                                </div>
+                            )}
+                            <input type="file" ref={profileImageRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'profileImage')} />
+                        </div>
+                        {/* 하단 1/3: 직사각형 텍스트 슬롯 */}
+                        <div className="flex-1 flex items-center">
+                            <input 
+                                data-widget-input
+                                className="w-full text-xs text-center rounded px-2 py-2 outline-none transition-colors touch-manipulation"
+                                style={{
+                                    borderRadius: '8px',
+                                    backgroundColor: 'var(--widget-input-background, #f8fafc)',
+                                    border: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))',
+                                    color: 'var(--text-color-primary, #764737)'
+                                }}
+                                value={currentData.profileText || ''}
+                                onChange={(e) => onUpdateText(dashboardKey, 'profileText', e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                placeholder="소개글을 입력하세요..."
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* 2. Goals - Checklist (진행도 제거) */}
+                <div data-widget="goals" className="flex-1 border flex flex-col backdrop-blur-[1px] overflow-hidden" style={{ borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))', backgroundColor: 'var(--widget-surface-background, #ffffff)' }}>
+                    {/* Bar (진행도 없음) */}
+                    <div data-widget-bar className="text-center text-[13px] py-1" style={{ background: 'var(--goals-header-bar-bg, #FEDFDC)', borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))' }}>
+                        Monthly Goals
+                    </div>
+                    <div className="flex-1 p-3 flex flex-col overflow-hidden">
+                        <input 
+                            data-widget-input
+                            className="w-full text-sm border rounded-[4px] px-2 py-1.5 outline-none transition-colors mb-2 touch-manipulation"
+                            style={{
+                                backgroundColor: 'var(--widget-input-background, #f8fafc)',
+                                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                                color: 'var(--text-color-primary, #764737)'
+                            }}
+                            value={goalInput}
+                            onChange={(e) => setGoalInput(e.target.value)}
+                            onKeyDown={handleAddGoal}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="Add goal…"
+                        />
+                        <div className="flex-1 flex flex-col gap-2 overflow-auto">
+                            {goals.map((item, idx) => (
+                                <div 
+                                    key={idx}
+                                    data-widget-input
+                                    className="flex items-center gap-2 px-2 py-1.5 border rounded-[4px] transition-colors"
+                                    style={{
+                                        backgroundColor: 'var(--widget-surface-background, #ffffff)',
+                                        borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))'
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={item.completed}
+                                        onChange={(e) => toggleGoalItem(idx, e as any)}
+                                        className="w-4 h-4 rounded cursor-pointer"
+                                        style={{
+                                            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                                            accentColor: 'var(--text-color-primary, #764737)'
+                                        }}
+                                    />
+                                    <span className={`flex-1 text-xs ${item.completed ? 'line-through opacity-50' : ''}`} style={{ color: 'var(--text-color-primary, #764737)' }}>
+                                        {item.text}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Middle Row */}
+            <div className="flex gap-4 h-[35%]">
+                {/* Column 1: D-Day & OhaAsa */}
+                <div className="w-[30%] flex flex-col gap-4">
+                     {/* 3. D-Day - Simplified (배경 변경 버튼 분리) */}
+                    <div 
+                        data-widget="dday"
+                        className="flex-1 relative border rounded-sm backdrop-blur-[1px] overflow-hidden"
+                        style={{
+                            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                            backgroundColor: currentData.dDayBgImage ? 'transparent' : 'var(--widget-surface-background, #ffffff)',
+                            backgroundImage: currentData.dDayBgImage ? `url(${currentData.dDayBgImage})` : 'none',
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center'
+                        }}
+                    >
+                        {currentData.dDayBgImage && (
+                            <div className="absolute inset-0 bg-white/50 backdrop-blur-[1px] z-0"></div>
+                        )}
+                        
+                        {/* 상단 바: Event 이름 입력 */}
+                        <input 
+                            data-widget-bar
+                            className="relative z-10 w-full bg-transparent text-center outline-none text-[13px] py-1"
+                            style={{ background: 'var(--dday-header-bar-bg, #FCF5C8)', borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))' }}
+                            value={currentData.dDayTitle || ''}
+                            onChange={(e) => onUpdateText(dashboardKey, 'dDayTitle', e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="EVENT"
+                        />
+                        
+                        {/* D-? 클릭 영역 */}
+                        <div 
+                            className="relative z-10 flex flex-col items-center justify-center h-[calc(100%-32px)] p-2 cursor-pointer group/dday transition-all"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setShowDdayDatePicker(!showDdayDatePicker);
+                            }}
+                            onTouchEnd={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setShowDdayDatePicker(!showDdayDatePicker);
+                            }}
+                        >
+                            {/* hover 시 은은한 오버레이 */}
+                            <div className="absolute inset-0 opacity-0 group-hover/dday:opacity-100 transition-opacity bg-black/5"></div>
+                            
+                            <div
+                                className="relative z-10 font-mono text-3xl font-bold"
+                                style={{ color: 'var(--text-color-primary, #764737)' }}
+                            >
+                                {calculateDDay()}
+                            </div>
+                            {currentData.dDayDate && (
+                                <div
+                                    className="relative z-10 text-[10px] mt-1"
+                                    style={{ color: 'var(--text-color-primary, #764737)', opacity: 0.7 }}
+                                >
+                                    {new Date(currentData.dDayDate).toLocaleDateString()}
+                                </div>
+                            )}
+                            
+                            {/* 날짜 선택기 (토글) */}
+                            {showDdayDatePicker && (
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20">
+                                    <input 
+                                        type="date"
+                                        data-widget-input
+                                        className="border rounded text-sm text-center outline-none px-2 py-1"
+                                        style={{
+                                            backgroundColor: 'var(--widget-input-background, #f8fafc)',
+                                            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                                            color: 'var(--text-color-primary, #764737)'
+                                        }}
+                                        value={currentData.dDayDate || ''}
+                                        onChange={(e) => {
+                                            onUpdateText(dashboardKey, 'dDayDate', e.target.value);
+                                            setShowDdayDatePicker(false);
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        autoFocus
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* 배경 변경 버튼 (우측 하단, 작은 버튼) */}
+                        <button
+                            className="absolute bottom-2 right-2 z-10 w-7 h-7 flex items-center justify-center bg-white/80 hover:bg-white rounded opacity-0 group-hover/dday:opacity-100 transition-all"
+                            style={{ color: 'var(--text-color-primary, #764737)' }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                dDayBgImageRef.current?.click();
+                            }}
+                            onTouchEnd={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                dDayBgImageRef.current?.click();
+                            }}
+                            title="Change Background"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    {/* 8. OhaAsa - Box Widget (별 제거) */}
+                    <div
+                      ref={ohaasaRef}
+                      data-widget="ohaasa"
+                      className="flex-1 border backdrop-blur-sm flex flex-col overflow-hidden relative"
+                      style={{
+                        borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                        backgroundColor: 'var(--widget-surface-background, #ffffff)',
+                      }}
+                    >
+                      {/* Top bar: click to open sign dropdown */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          data-widget-bar
+                          className="w-full text-center text-[13px] py-1 cursor-pointer select-none transition-all hover:brightness-95 active:brightness-90 active:translate-y-[1px]"
+                          style={{
+                            background: 'var(--ohaasa-header-bar-bg, #EBE7F5)',
+                            borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))',
+                            color: 'inherit',
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOhaasaOpen((v) => !v);
+                          }}
+                          title="별자리 선택"
+                        >
+                          <span className="inline-flex items-center justify-center w-full relative">
+                            <span className="truncate px-6">{getSignLabelKo(ohaasaSign)}</span>
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px]" style={{ opacity: 0.75 }}>
+                              ▾
+                            </span>
+                          </span>
+                        </button>
+
+                        {ohaasaOpen && (
+                          <div
+                            className="absolute left-0 right-0 top-full z-30 border bg-white rounded-b-lg overflow-hidden"
+                            style={{
+                              borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                              color: 'inherit',
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="flex flex-col p-2 gap-1 max-h-[240px] overflow-auto">
+                              {OHAASA_SIGNS.map((s) => (
+                                <button
+                                  key={s.id}
+                                  type="button"
+                                  className="text-[11px] px-2 py-1 rounded border hover:opacity-95 active:scale-[0.99] transition-all flex items-center justify-between gap-2"
+                                  style={{
+                                    backgroundColor: 'var(--widget-surface-background, #ffffff)',
+                                    borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                                    color: 'inherit',
+                                    fontWeight: s.id === ohaasaSign ? 700 : 500,
+                                  }}
+                                  onClick={() => {
+                                    const next = s.id as OhaasaSignId;
+                                    setOhaasaSign(next);
+                                    setOhaasaOpen(false);
+                                    try {
+                                      localStorage.setItem(OHAASA_SIGN_KEY, next);
+                                    } catch {
+                                      // ignore
+                                    }
+                                  }}
+                                >
+                                  <span className="truncate">{s.ko}</span>
+                                  <span className="shrink-0 text-[12px]" style={{ opacity: s.id === ohaasaSign ? 0.9 : 0 }}>
+                                    ✓
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Body */}
+                      <div className="flex-1 p-3 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="w-full h-8 px-2 rounded border text-[11px] font-bold active:scale-95 transition-all disabled:opacity-50"
+                          style={{
+                            backgroundColor: 'var(--widget-surface-background, #ffffff)',
+                            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                            color: 'inherit',
+                          }}
+                          onClick={() => {
+                            // ✅ fetch only on button click
+                            handleOhaasaFetch({ force: !!ohaasaResult?.rank });
+                          }}
+                          disabled={ohaasaLoading}
+                        >
+                          {ohaasaLoading
+                            ? '불러오는 중…'
+                            : ohaasaError
+                              ? '다시 시도'
+                              : ohaasaResult?.rank
+                                ? `${ohaasaResult.rank}위`
+                                : '오늘의 오하아사 확인'}
+                        </button>
+
+                        <div className="flex-1 flex flex-col justify-center items-center text-center gap-1">
+                          {ohaasaError ? (
+                            <div className="text-[11px]" style={{ opacity: 0.85 }}>
+                              불러오기 실패
+                            </div>
+                          ) : ohaasaResult?.rank ? (
+                            <>
+                              <div className="text-[12px] font-bold">
+                                오늘 {getSignLabelKo(ohaasaSign)} : {ohaasaResult.rank}위
+                              </div>
+                              {!isTranslationFailed(ohaasaResult) && (
+                                <div className="text-[11px]" style={{ opacity: 0.85 }}>
+                                  {ohaasaResult.textKo}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="text-[11px]" style={{ opacity: 0.65 }}>
+                              별자리를 선택하고 버튼을 눌러주세요
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            className="text-[10px] underline"
+                            style={{ opacity: 0.7, color: 'inherit' }}
+                            onClick={() => {
+                              const url =
+                                ohaasaError || isTranslationFailed(ohaasaResult)
+                                  ? OHAASA_X_URL
+                                  : ohaasaResult?.sourceUrl || OHAASA_X_URL;
+                              setOhaasaLinkModalUrl(url);
+                              setOhaasaLinkModalOpen(true);
+                            }}
+                            title="원문 보기(새 창)"
+                          >
+                            원문 보기
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <ExternalLinkModal
+                      isOpen={ohaasaLinkModalOpen}
+                      url={ohaasaLinkModalUrl}
+                      title="원문 보기"
+                      onClose={() => setOhaasaLinkModalOpen(false)}
+                    />
+                </div>
+
+                {/* Column 2: CD Player (이중 테두리 제거) */}
+                <div data-widget="cd" className="flex-1 relative">
+
+                     {/* 외부 컨테이너: 테두리는 여기서만 */}
+                     <div 
+                        className="absolute inset-0 rounded-xl flex flex-row items-center p-3 gap-3 overflow-hidden"
+                        style={{
+                            backgroundColor: currentData.cdBodyBgImage ? 'transparent' : 'var(--cd-widget-background, #F4F5E1)',
+                            backgroundImage: currentData.cdBodyBgImage ? `url(${currentData.cdBodyBgImage})` : 'none',
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center'
+                        }}
+                     >
+                         {currentData.cdBodyBgImage && (
+                             <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px]"></div>
+                         )}
+                         
+                         {/* CD 디스크: border/outline 제거 */}
+                         <div className="relative z-10 flex-shrink-0 cursor-pointer group/cd touch-manipulation"
+                            onClick={handleCdClick}
+                            onTouchEnd={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleCdClick(e);
+                            }}
+                         >
+                             <div 
+                                className={`w-40 h-40 rounded-full overflow-hidden relative ${isThisTrackPlaying ? 'animate-spin-slow' : 'paused-animation'}`}
+                                style={{ 
+                                    animationDuration: '4s',
+                                    backgroundColor: 'var(--cd-disc-color, #1e293b)'
+                                }}
+                             >
+                                 {currentData.photoUrl ? (
+                                     <img src={currentData.photoUrl} alt="CD" className="w-full h-full object-cover" />
+                                 ) : (
+                                     <div
+                                        className="w-full h-full flex flex-col items-center justify-center"
+                                        style={{
+                                            backgroundColor: 'var(--cd-disc-color, #1e293b)',
+                                            color: 'var(--text-color-primary, #764737)'
+                                        }}
+                                     >
+                                         <span className="text-[8px]">NO DISC</span>
+                                     </div>
+                                 )}
+                                 
+                                 {/* 광택 효과: border 제거 */}
+                                 <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none rounded-full"></div>
+                                {/* 내부 홀: inset box-shadow를 UI stroke 토큰으로 통일 */}
+                                <div
+                                  className="absolute inset-[40%] rounded-full"
+                                  style={{ boxShadow: 'inset 0 0 0 var(--ui-stroke-width, 1px) var(--ui-stroke-color)' }}
+                                ></div>
+                             </div>
+
+                             {/* 중앙 홀/라벨: border 제거, box-shadow로 대체 */}
+                            <div 
+                               className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white/30 backdrop-blur rounded-full flex items-center justify-center z-10 pointer-events-none"
+                               style={{ boxShadow: 'inset 0 0 0 var(--ui-stroke-width, 1px) var(--ui-stroke-color)' }}
+                            >
+                                <div className="w-2.5 h-2.5 bg-white rounded-full shadow-inner"></div>
+                             </div>
+
+                             {/* 재생/일시정지 오버레이 */}
+                             <div className={`absolute inset-0 rounded-full flex items-center justify-center z-20 transition-opacity bg-black/10 ${isThisTrackPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-0 group-hover/cd:opacity-100'}`}>
+                                 {isThisTrackPlaying ? (
+                                     <svg className="w-10 h-10 drop-shadow-md" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--text-color-primary, #764737)' }}><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                                 ) : (
+                                     <svg className="w-10 h-10 drop-shadow-md ml-1" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--text-color-primary, #764737)' }}><path d="M8 5v14l11-7z"/></svg>
+                                 )}
+                             </div>
+                         </div>
+
+                         {/* 우측 컨트롤 패널 */}
+                         <div className="relative z-10 flex-1 flex flex-col h-full justify-center gap-2 min-w-0">
+                             {/* 스크린: border 유지 (내부 요소이므로 허용) */}
+                            <div 
+                                className="rounded p-2 shadow-inner mb-1 flex items-center h-16 relative overflow-hidden"
+                                style={{
+                                    backgroundColor: 'var(--cd-screen-bg, #1e293b)',
+                                    border: 'var(--ui-stroke-width, 1px) solid var(--ui-stroke-color)'
+                                }}
+                             >
+                                 <div className="absolute inset-0 bg-teal-500/5 pointer-events-none"></div>
+                                <input 
+                                    className="w-full text-xs outline-none text-center touch-manipulation"
+                                    style={{
+                                        backgroundColor: 'transparent',
+                                        boxShadow: 'none',
+                                        color: 'var(--text-color-primary, #764737)'
+                                    }}
+                                    placeholder="TRACK 01..."
+                                    value={currentData.musicTitle || ''}
+                                    onChange={(e) => onUpdateText(dashboardKey, 'musicTitle', e.target.value)}
+                                    onClick={(e) => e.stopPropagation()}
+                                 />
+                                 {isThisTrackPlaying && (
+                                     <div className="absolute top-1 right-1 w-1.5 h-1.5 bg-[var(--ui-danger-bg)] rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.8)]"></div>
+                                 )}
+                             </div>
+
+                             <div className="flex flex-col gap-2">
+                                 {showLinkInput ? (
+                                     <input 
+                                        className="w-full text-center rounded px-1 py-2 text-[9px] border outline-none animate-in fade-in slide-in-from-top-1 touch-manipulation"
+                                        style={{
+                                            backgroundColor: 'var(--widget-input-background, #f8fafc)',
+                                            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                                            color: 'var(--text-color-primary, #764737)'
+                                        }}
+                                        placeholder="Paste Link..."
+                                        onKeyDown={handleLinkSubmit}
+                                        autoFocus
+                                        onBlur={() => setShowLinkInput(false)}
+                                        onClick={(e) => e.stopPropagation()}
+                                     />
+                                 ) : (
+                                    <div className="flex gap-2 justify-center">
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setShowLinkInput(true);
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setShowLinkInput(true);
+                                            }}
+                                            className="h-10 flex-1 rounded shadow-sm border transition-all flex items-center justify-center gap-1 active:scale-95 touch-manipulation"
+                                            style={{
+                                                backgroundColor: 'var(--cd-button-bg, #ffffff)',
+                                                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))'
+                                            }}
+                                        >
+                                            <span className="text-[10px] font-bold" style={{ color: 'var(--text-color-primary, #764737)' }}>LINK</span>
+                                        </button>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                musicCoverInputRef.current?.click();
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                musicCoverInputRef.current?.click();
+                                            }}
+                                            className="h-10 w-10 rounded shadow-sm border transition-all flex items-center justify-center active:scale-95 touch-manipulation text-xl"
+                                            style={{
+                                                backgroundColor: 'var(--cd-button-bg, #ffffff)',
+                                                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                                                color: 'var(--text-color-primary, #764737)'
+                                            }}
+                                            title="Change CD Cover"
+                                        >
+                                            💿
+                                        </button>
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                cdBodyBgImageRef.current?.click();
+                                            }}
+                                            onTouchEnd={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                cdBodyBgImageRef.current?.click();
+                                            }}
+                                            className="h-10 w-10 rounded shadow-sm border transition-all flex items-center justify-center active:scale-95 touch-manipulation"
+                                            style={{
+                                                backgroundColor: 'var(--cd-button-bg, #ffffff)',
+                                                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                                                color: 'var(--text-color-primary, #764737)'
+                                            }}
+                                            title="Change Player Background"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+                                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                 )}
+                                 
+                                 {/* 하단 점: border 제거 */}
+                                <div className="flex justify-between px-2 pt-1" style={{ borderTop: 'var(--ui-stroke-width, 1px) solid var(--ui-stroke-color)' }}>
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--ui-stroke-color)' }}></div>
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--ui-stroke-color)' }}></div>
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: 'var(--ui-stroke-color)' }}></div>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                     
+                     <input type="file" ref={musicCoverInputRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'photoUrl')} />
+                     <input type="file" ref={cdBodyBgImageRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'cdBodyBgImage')} />
+                </div>
+            </div>
+
+            {/* Bottom Row: Bucket List (진행도 제거, 배경 변경 버튼 분리) */}
+            <div 
+                data-widget="bucket"
+                className="flex-1 relative border flex flex-col backdrop-blur-[1px] overflow-hidden group/bucket"
+                style={{
+                    borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                    backgroundColor: currentData.bucketBgImage ? 'transparent' : 'var(--widget-surface-background, #ffffff)',
+                    backgroundImage: currentData.bucketBgImage ? `url(${currentData.bucketBgImage})` : 'none',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                }}
+            >
+                {currentData.bucketBgImage && (
+                    <div className="absolute inset-0 bg-white/70 backdrop-blur-[1px] z-0"></div>
+                )}
+                
+                <div className="relative z-10 flex flex-col h-full">
+                    {/* Bar (진행도 제거) */}
+                    <div data-widget-bar className="text-center text-[13px] py-1" style={{ background: 'var(--bucket-header-bar-bg, #EFF1AA)', borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))' }}>
+                        Bucket List
+                    </div>
+                    
+                    {/* 입력/목록 영역 */}
+                    <div className="flex-1 flex flex-col p-3 pt-2 overflow-hidden">
+                        <input 
+                            data-widget-input
+                            className="w-full text-sm border rounded-[4px] px-2 py-1.5 outline-none transition-colors mb-2 touch-manipulation"
+                            style={{
+                                backgroundColor: 'var(--widget-input-background, #f8fafc)',
+                                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                                color: 'var(--text-color-primary, #764737)'
+                            }}
+                            value={bucketInput}
+                            onChange={(e) => setBucketInput(e.target.value)}
+                            onKeyDown={handleAddBucketItem}
+                            onClick={(e) => e.stopPropagation()}
+                            placeholder="Add item…"
+                        />
+                        <div className="flex-1 flex flex-col gap-2 overflow-auto">
+                            {bucketItems.map((item, idx) => (
+                                <div 
+                                    key={idx}
+                                    data-widget-input
+                                    className="flex items-center gap-2 px-2 py-1.5 border rounded-[4px] transition-colors"
+                                    style={{
+                                        backgroundColor: 'var(--widget-surface-background, #ffffff)',
+                                        borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))'
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={item.completed}
+                                        onChange={(e) => toggleBucketItem(idx, e as any)}
+                                        className="w-4 h-4 rounded cursor-pointer"
+                                        style={{
+                                            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                                            accentColor: 'var(--text-color-primary, #764737)'
+                                        }}
+                                    />
+                                    <span className={`flex-1 text-xs ${item.completed ? 'line-through opacity-50' : ''}`} style={{ color: 'var(--text-color-primary, #764737)' }}>
+                                        {item.text}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    {/* 배경 변경 버튼 (우측 하단, 작은 버튼) */}
+                    <button
+                        className="absolute bottom-2 right-2 z-10 w-7 h-7 flex items-center justify-center bg-white/80 hover:bg-white rounded opacity-0 group-hover/bucket:opacity-100 transition-all"
+                        style={{ color: 'var(--text-color-primary, #764737)' }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            bucketBgImageRef.current?.click();
+                        }}
+                        onTouchEnd={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            bucketBgImageRef.current?.click();
+                        }}
+                        title="Change Background"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+         </div>
+      </div>
+      )}
+
+      {/* --- Right Page (Calendar) --- */}
+      {(viewMode === 'both' || viewMode === 'right') && (
+      <div
+        data-note-paper="right"
+        className={`${isSpreadView ? '' : 'note-paper-surface '}flex-1 relative flex flex-col p-8 gap-3`}
+        style={{
+          backgroundColor: isSpreadView ? 'transparent' : 'var(--note-paper-background, #f7f5ed)',
+          backgroundImage: isSpreadView ? 'none' : undefined,
+          color: 'var(--ui-text-color, var(--text-color-primary, #764737))',
+        }}
+      >
+          {/* 1. Calendar Header Bar (얇은 링크바 형태) */}
+          <div
+            data-calendar-header-bar
+            className="w-full border rounded-lg"
+            style={{
+              borderColor: 'var(--ui-stroke-color, #d1d5db)',
+              backgroundColor: 'var(--widget-surface-background, #ffffff)',
+              backgroundImage: currentData.monthHeaderBg ? `url(${currentData.monthHeaderBg})` : 'none',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              height: 52,
+              paddingTop: 12,
+              paddingBottom: 12,
+              paddingLeft: 12,
+              paddingRight: 12,
+              display: 'grid',
+              gridTemplateColumns: '140px 1fr 120px',
+              alignItems: 'center',
+              gap: 12,
+              color: 'inherit',
+            }}
+          >
+            {/* Month */}
+            <div className="min-w-0">
+              <div
+                className="w-full h-8 border rounded flex items-center justify-center cursor-pointer select-none overflow-hidden text-ellipsis whitespace-nowrap"
+                style={{
+                  backgroundColor: 'var(--widget-surface-background, #ffffff)',
+                  borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                  color: 'inherit',
+                  fontSize: 16,
+                  fontWeight: 700,
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  monthHeaderBgRef.current?.click();
+                }}
+                title="헤더 커버 변경"
+              >
+                {new Date(year, month, 1).toLocaleString('en-US', { month: 'long' }).toUpperCase()}
+              </div>
+            </div>
+
+            {/* Marquee / Input */}
+            <div
+              className="min-w-0 h-8 border rounded px-2 flex items-center"
+              style={{
+                backgroundColor: 'var(--widget-surface-background, #ffffff)',
+                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                color: 'inherit',
+              }}
+            >
+              <MarqueeField
+                storageKey={`dingel:calendarMarquee:${year}-${String(month + 1).padStart(2, '0')}`}
+                placeholder="전광판 문구를 입력하세요..."
+                className="min-w-0 w-full"
+              />
+            </div>
+
+            {/* Year controls */}
+            <div
+              className="flex items-center justify-end gap-2 h-8 border rounded px-1"
+              style={{
+                backgroundColor: 'var(--widget-surface-background, #ffffff)',
+                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                color: 'inherit',
+              }}
+            >
+              <button
+                className="flex items-center justify-center w-7 h-7 hover:opacity-75 active:scale-95 transition-all touch-manipulation"
+                style={{ backgroundColor: 'transparent' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onYearChange) onYearChange(year - 1);
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (onYearChange) onYearChange(year - 1);
+                }}
+                title="이전 년도"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+
+              <span className="text-[13px]" style={{ fontWeight: 600 }}>
+                {year}
+              </span>
+
+              <button
+                className="flex items-center justify-center w-7 h-7 hover:opacity-75 active:scale-95 transition-all touch-manipulation"
+                style={{ backgroundColor: 'transparent' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onYearChange) onYearChange(year + 1);
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (onYearChange) onYearChange(year + 1);
+                }}
+                title="다음 년도"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* cover 기능은 유지(실험 단계: UI는 숨김) */}
+          <input type="file" ref={monthHeaderBgRef} className="hidden" accept="image/*" onChange={(e) => handleImageUpload(e, 'monthHeaderBg')} />
+
+          {/* ✅ ui:selftest/레거시 호환: 기존 cover 헤더 DOM은 유지하되 UI에서는 숨김 */}
+          <div
+            data-calendar-header
+            data-has-bg-image={currentData.monthHeaderBg ? 'true' : 'false'}
+            style={{
+              display: 'none',
+              backgroundColor: 'var(--calendar-date-header-bg, var(--calendar-weekday-header-bg))',
+              backgroundImage: currentData.monthHeaderBg ? `url(${currentData.monthHeaderBg})` : 'none',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              boxShadow: 'none',
+              filter: 'none',
+            }}
+          />
+
+          {/* 2. 달력 그리드 (6×7 고정 + 정사각형에 가깝게, 높이만 소폭 감소) */}
+          <div className="flex-none w-full" style={{ aspectRatio: '1.04 / 1' }}>
+              <div
+                data-calendar-grid
+                className="w-full h-full border rounded overflow-hidden flex flex-col"
+                style={{ 
+                  borderColor: 'var(--calendar-grid-line-color, var(--ui-stroke-color, #d1d5db))',
+                  backgroundColor: 'transparent'
+                }}
+              >
+                 {/* Header Row - 요일 */}
+                 <div data-calendar-weekday-header className="grid grid-cols-7 h-9" style={{ backgroundColor: 'var(--calendar-weekday-header-bg, #FEDFDC)' }}>
+                     {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((d, i) => (
+                         <div 
+                            key={d} 
+                            className="flex items-center justify-center font-mono font-bold text-xs relative group/dow overflow-hidden"
+                            style={{
+                                borderRight: i < 6 ? '1px solid var(--calendar-grid-line-color, var(--ui-stroke-color, #d1d5db))' : 'none',
+                                borderBottom: '1px solid var(--calendar-grid-line-color, var(--ui-stroke-color, #d1d5db))',
+                                backgroundImage: currentData[dowKeys[i]] ? `url(${currentData[dowKeys[i]]})` : 'none',
+                                backgroundSize: 'cover',
+                                backgroundPosition: 'center',
+                                color: 'var(--text-color-primary, #764737)'
+                            }}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                dowRefs[i].current?.click();
+                            }}
+                            onTouchEnd={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                dowRefs[i].current?.click();
+                            }}
+                         >
+                             {/* hover 시 은은한 오버레이 */}
+                             <div className="absolute inset-0 opacity-0 group-hover/dow:opacity-100 transition-opacity bg-black/5"></div>
+                             
+                             {currentData[dowKeys[i]] && (
+                                 <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px]"></div>
+                             )}
+                             <span className="relative z-10">{d}</span>
+                             <input 
+                                type="file" 
+                                ref={dowRefs[i]} 
+                                className="hidden" 
+                                accept="image/*" 
+                                onChange={(e) => handleImageUpload(e, dowKeys[i])} 
+                             />
+                         </div>
+                     ))}
+                 </div>
+                 
+                 {/* Calendar Grid - 6행 고정, gap 0, border-right/bottom만 (중복 제거) */}
+                 <div
+                   className="grid grid-cols-7 flex-1"
+                   style={{
+                     gridTemplateRows: 'repeat(6, 1fr)',
+                     gap: 0
+                   }}
+                 >
+                   {weeks.map((week, wIdx) =>
+                     week.map((cell, cIdx) => (
+                       <div
+                         key={`${formatDateKey(cell.date)}-${wIdx}-${cIdx}`}
+                         style={{
+                           borderRight: cIdx < 6 ? '1px solid var(--calendar-grid-line-color, var(--ui-stroke-color, #d1d5db))' : 'none',
+                           borderBottom: wIdx < 5 ? '1px solid var(--calendar-grid-line-color, var(--ui-stroke-color, #d1d5db))' : 'none',
+                           backgroundColor: 'transparent'
+                         }}
+                       >
+                         {renderCell(cell.date, cell.isInMonth)}
+                       </div>
+                     ))
+                   )}
+                 </div>
+              </div>
+          </div>
+
+          {/* 3. Link Dock (달력 아래, 폭=달력과 동일) */}
+          {onInsertLinksToDate && linkDockItems && setLinkDockItems && (
+            <div className="w-full">
+              <LinkDock
+                viewDate={currentDate}
+                items={linkDockItems}
+                setItems={setLinkDockItems}
+                onInsertLinksToDate={onInsertLinksToDate}
+                onAddPhotoToDate={onAddPhotoToDate}
+              />
+            </div>
+          )}
+      </div>
+      )}
+    </>
+  );
+};
+
+export default MonthlySpread;
+

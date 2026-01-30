@@ -1,0 +1,5 @@
+{
+  "name": "digitalscrapdiary",
+  "description": "A digital scrapbook that transforms URLs into interactive, aesthetic objects like 3D books, cassettes, and polaroids using Gemini AI.",
+  "requestFramePermissions": []
+}

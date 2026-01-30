@@ -1,0 +1,64 @@
+﻿electron-release
+
+On branch electron-release
+Your branch is up to date with 'origin/electron-release'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   App.tsx
+	modified:   STABILIZATION_REPORT.md
+	modified:   api/scrap.ts
+	modified:   components/BookSpreadView.tsx
+	modified:   components/CreationModal.tsx
+	modified:   components/DesktopApp.tsx
+	modified:   components/FontSelector.tsx
+	modified:   components/PaletteEditorModal.tsx
+	modified:   components/SelfTestRunner.tsx
+	modified:   components/UrlInput.tsx
+	modified:   components/items/TwitterEmbedCard.tsx
+	modified:   components/layouts/FreeLayout.tsx
+	modified:   components/layouts/MonthlySpread.tsx
+	modified:   components/layouts/WeeklySpread.tsx
+	modified:   components/mobile/MobileApp.tsx
+	modified:   components/mobile/MobileScrapView.tsx
+	modified:   constants/appConstants.ts
+	modified:   electron/main.ts
+	modified:   electron/preload.ts
+	modified:   hooks/useAppState.ts
+	modified:   hooks/useFileSync.ts
+	modified:   hooks/useItemHandlers.ts
+	modified:   hooks/useLayoutHandlers.ts
+	modified:   hooks/useStorageSync.ts
+	modified:   index.html
+	modified:   services/apiClient.ts
+	modified:   services/backup.ts
+	modified:   services/fileStorage.ts
+	modified:   services/urlParser.ts
+	modified:   src/types/electron.d.ts
+	modified:   types.ts
+	modified:   utils/theme.ts
+	modified:   vite.config.ts
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	components/ExternalLinkModal.tsx
+	components/LinkDock.tsx
+	components/PersistentYouTubePlayer.tsx
+	components/calendar/
+	constants/fonts.ts
+	docs/
+	music/
+	ohaasa_horoscope.html
+	ohaasa_horoscope.json
+	ohaasa_main.min.js
+	selftest-timeout.png
+	services/ohaasa.ts
+	shared/
+	src/types/thirdParty.d.ts
+	utils/openExternal.ts
+
+no changes added to commit (use "git add" and/or "git commit -a")
+
+1203778 ?묒뾽 ?댁슜 ???c6f8409 ?덈룄?곕줈 ?댁궗 以鍮??꾨즺
+ddc5f02 feat: prepare electron release (no env/build artifacts)

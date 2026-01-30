@@ -1,0 +1,689 @@
+import { GoogleGenAI } from "@google/genai";
+import { ScrapType, ScrapMetadata } from "../types";
+
+// ------------------------------------------------------------------
+// ⚠️ DEPRECATED - 정책 준수 위반
+// ------------------------------------------------------------------
+// 이 파일은 더 이상 사용되지 않습니다.
+// 모든 스크래핑은 /api/scrap 서버 API를 통해서만 수행됩니다.
+//
+// ❌ 제거된 기능:
+// - 클라이언트 CORS 프록시 (allorigins, corsproxy)
+// - 비공식 API 직접 호출
+// - SNS 원문 저장
+//
+// ✅ 대체:
+// - services/apiClient.ts 사용
+// - 서버 API (/api/scrap)를 통한 안전한 스크래핑
+//
+// 이 파일은 레거시 지원 또는 개발 참고용으로만 유지됩니다.
+// ------------------------------------------------------------------
+
+// --- 1. Caching Layer (In-Memory) ---
+// Stores metadata to prevent redundant API calls and speed up the UI.
+const CACHE_TTL_MS = 1000 * 60 * 60 * 24; // 24 Hours Cache
+const memoryCache = new Map<string, { data: ScrapMetadata; timestamp: number }>();
+
+const getCachedData = (url: string): ScrapMetadata | null => {
+  const cached = memoryCache.get(url);
+  if (!cached) return null;
+  
+  // Check Expiry
+  if (Date.now() - cached.timestamp > CACHE_TTL_MS) {
+    memoryCache.delete(url);
+    return null;
+  }
+  return cached.data;
+};
+
+const setCachedData = (url: string, data: ScrapMetadata) => {
+  // Save to memory (In Prod, use Redis)
+  memoryCache.set(url, { data, timestamp: Date.now() });
+};
+
+// --- 2. Platform Specific Fetchers ---
+
+// ⚠️ DEPRECATED - 서버 API 사용 권장
+const fetchPinterest = async (url: string): Promise<ScrapMetadata | null> => {
+  console.warn('⚠️ fetchPinterest는 deprecated입니다. /api/scrap을 사용하세요.');
+  
+  try {
+    const oembedUrl = `https://www.pinterest.com/oembed.json?url=${encodeURIComponent(url)}`;
+    
+    // ❌ 프록시 제거됨 - 직접 호출 (CORS 에러 발생 가능)
+    console.log(`🔄 핀터레스트 데이터 가져오기 (프록시 없이)...`);
+    
+    // 타임아웃 설정 (7초)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+        const response = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.warn(`⚠️ 프록시 ${i + 1} 실패: ${response.status}`);
+          continue;
+        }
+
+        const data = await response.json();
+        console.log('✅ 핀터레스트 OEmbed 데이터 성공:', data);
+
+        return {
+          title: data.title || "Pinterest Pin",
+          subtitle: data.author_name || "Pinterest",
+          description: "Pinterest에서 핀을 스크랩했습니다.",
+          imageUrl: data.thumbnail_url,
+          url: url,
+          themeColor: "#E60023",
+          isEditable: false
+        };
+      } catch (proxyError) {
+        console.warn(`⚠️ 프록시 ${i + 1} 에러:`, proxyError);
+        if (i === PROXIES.length - 1) {
+          throw proxyError;
+        }
+      }
+    }
+
+    throw new Error("All proxies failed");
+
+  } catch (e) {
+    console.error("❌ Pinterest OEmbed Fetch 완전 실패:", e);
+    // Fallback 데이터 반환
+    return {
+      title: "Pinterest Pin",
+      subtitle: "Pinterest",
+      description: "핀터레스트 링크를 저장했습니다. 링크를 클릭하여 확인하세요.",
+      imageUrl: "",
+      url: url,
+      themeColor: "#E60023",
+      isEditable: true
+    };
+  }
+};
+
+// 🐦 트위터 트윗 ID 추출 함수
+const extractTweetId = (url: string): string | null => {
+  // 다양한 트위터 URL 형식 지원
+  const patterns = [
+    /twitter\.com\/\w+\/status\/(\d+)/,
+    /x\.com\/\w+\/status\/(\d+)/,
+    /twitter\.com\/.*\/statuses\/(\d+)/,
+    /x\.com\/.*\/statuses\/(\d+)/,
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+};
+
+// 🐦 트위터(X) 상세 정보 가져오기 (Syndication API 사용)
+const fetchTwitterOEmbed = async (url: string): Promise<ScrapMetadata | null> => {
+  try {
+    const tweetId = extractTweetId(url);
+    
+    if (!tweetId) {
+      console.warn("⚠️ 트윗 ID를 추출할 수 없습니다");
+      throw new Error("Invalid Twitter URL");
+    }
+
+    console.log(`🔄 트윗 ID: ${tweetId} 데이터 가져오기...`);
+
+    // CORS 우회 프록시 목록
+    const PROXIES = [
+      (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    ];
+    
+    // Twitter Syndication API (공식 비공개 API이지만 공개적으로 사용 가능)
+    const syndicationUrl = `https://cdn.syndication.twimg.com/tweet-result?id=${tweetId}&lang=ko`;
+    
+    // Syndication API 시도
+    for (let i = 0; i < PROXIES.length; i++) {
+      try {
+        const proxyUrl = PROXIES[i](syndicationUrl);
+        console.log(`🔄 Syndication API 시도 (프록시 ${i + 1}/${PROXIES.length})...`);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+        const response = await fetch(proxyUrl, { 
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json'
+          }
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.warn(`⚠️ 프록시 ${i + 1} 실패: ${response.status}`);
+          continue;
+        }
+        
+        const data = await response.json();
+        console.log('✅ 트위터 Syndication 데이터 성공:', data);
+
+        // 데이터 추출
+        const author = data.user?.name || "Twitter User";
+        const username = data.user?.screen_name || "";
+        const tweetText = data.text || "";
+        const profileImage = data.user?.profile_image_url_https || "";
+        
+        // 이미지 추출 (여러 이미지 중 첫 번째)
+        let imageUrl = "";
+        if (data.photos && data.photos.length > 0) {
+          imageUrl = data.photos[0].url;
+        } else if (data.video?.poster) {
+          imageUrl = data.video.poster;
+        }
+
+        // 통계 정보
+        const likes = data.favorite_count || 0;
+        const retweets = data.retweet_count || 0;
+        const replies = data.reply_count || 0;
+
+        return {
+          title: `${author}${username ? ` (@${username})` : ''}`,
+          subtitle: "Twitter (X)",
+          description: tweetText,
+          imageUrl: imageUrl,
+          url: url,
+          themeColor: "#000000",
+          isEditable: false,
+          // 트위터 통계 정보를 description에 추가
+          twitterStats: {
+            likes,
+            retweets,
+            replies,
+            profileImage
+          }
+        };
+      } catch (proxyError) {
+        console.warn(`⚠️ 프록시 ${i + 1} 에러:`, proxyError);
+        if (i === PROXIES.length - 1) {
+          throw proxyError;
+        }
+      }
+    }
+
+    throw new Error("All proxies failed");
+
+  } catch (e) {
+    console.error("❌ Twitter Fetch 완전 실패:", e);
+    
+    // Fallback: OEmbed API 시도
+    try {
+      const targetUrl = url.replace("x.com", "twitter.com");
+      const oembedUrl = `https://publish.twitter.com/oembed?url=${encodeURIComponent(targetUrl)}`;
+      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(oembedUrl)}`;
+      
+      const response = await fetch(proxyUrl);
+      if (response.ok) {
+        const data = await response.json();
+        return {
+          title: data.author_name ? `${data.author_name}님의 트윗` : "Twitter Post",
+          subtitle: "Twitter (X)",
+          description: "트윗 내용을 불러올 수 없습니다.",
+          imageUrl: "",
+          url: url,
+          themeColor: "#000000",
+          isEditable: false
+        };
+      }
+    } catch {}
+    
+    // 완전 실패 시
+    return {
+      title: "Twitter Post",
+      subtitle: "X / Twitter",
+      description: "트위터 링크를 저장했습니다. 링크를 클릭하여 확인하세요.",
+      imageUrl: "",
+      url: url,
+      themeColor: "#000000",
+      isEditable: true
+    };
+  }
+};
+
+// 🎵 스포티파이 OEmbed (음악)
+const fetchSpotify = async (url: string): Promise<ScrapMetadata | null> => {
+  try {
+    const oembedUrl = `https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`;
+    
+    const PROXIES = [
+      (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`
+    ];
+
+    for (let i = 0; i < PROXIES.length; i++) {
+      try {
+        const proxyUrl = PROXIES[i](oembedUrl);
+        console.log(`🔄 스포티파이 데이터 가져오기 시도 (프록시 ${i + 1}/${PROXIES.length})...`);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+        const response = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.warn(`⚠️ 프록시 ${i + 1} 실패: ${response.status}`);
+          continue;
+        }
+
+        const data = await response.json();
+        console.log('✅ 스포티파이 OEmbed 데이터 성공:', data);
+
+        return {
+          title: data.title || "Spotify Music",
+          subtitle: "Spotify",
+          description: "오늘의 추천 음악 🎵",
+          imageUrl: data.thumbnail_url,
+          url: url,
+          themeColor: "#1DB954",
+          isEditable: false
+        };
+      } catch (proxyError) {
+        console.warn(`⚠️ 프록시 ${i + 1} 에러:`, proxyError);
+        if (i === PROXIES.length - 1) throw proxyError;
+      }
+    }
+
+    throw new Error("All proxies failed");
+
+  } catch (e) {
+    console.error("❌ Spotify OEmbed Fetch 완전 실패:", e);
+    return {
+      title: "Spotify Music",
+      subtitle: "Spotify",
+      description: "스포티파이 링크를 저장했습니다. 링크를 클릭하여 확인하세요.",
+      imageUrl: "",
+      url: url,
+      themeColor: "#1DB954",
+      isEditable: true
+    };
+  }
+};
+
+// 📱 틱톡 OEmbed (숏폼)
+const fetchTikTok = async (url: string): Promise<ScrapMetadata | null> => {
+  try {
+    const oembedUrl = `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`;
+    
+    const PROXIES = [
+      (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`
+    ];
+
+    for (let i = 0; i < PROXIES.length; i++) {
+      try {
+        const proxyUrl = PROXIES[i](oembedUrl);
+        console.log(`🔄 틱톡 데이터 가져오기 시도 (프록시 ${i + 1}/${PROXIES.length})...`);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+        const response = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.warn(`⚠️ 프록시 ${i + 1} 실패: ${response.status}`);
+          continue;
+        }
+
+        const data = await response.json();
+        console.log('✅ 틱톡 OEmbed 데이터 성공:', data);
+
+        return {
+          title: data.title || "TikTok Video",
+          subtitle: data.author_name ? `@${data.author_name}` : "TikTok",
+          description: "틱톡 영상 스크랩",
+          imageUrl: data.thumbnail_url,
+          url: url,
+          themeColor: "#000000",
+          isEditable: false
+        };
+      } catch (proxyError) {
+        console.warn(`⚠️ 프록시 ${i + 1} 에러:`, proxyError);
+        if (i === PROXIES.length - 1) throw proxyError;
+      }
+    }
+
+    throw new Error("All proxies failed");
+
+  } catch (e) {
+    console.error("❌ TikTok OEmbed Fetch 완전 실패:", e);
+    return {
+      title: "TikTok Video",
+      subtitle: "TikTok",
+      description: "틱톡 링크를 저장했습니다. 링크를 클릭하여 확인하세요.",
+      imageUrl: "",
+      url: url,
+      themeColor: "#000000",
+      isEditable: true
+    };
+  }
+};
+
+// 🎥 비메오 OEmbed (고화질 영상)
+const fetchVimeo = async (url: string): Promise<ScrapMetadata | null> => {
+  try {
+    const oembedUrl = `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`;
+    
+    const PROXIES = [
+      (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`
+    ];
+
+    for (let i = 0; i < PROXIES.length; i++) {
+      try {
+        const proxyUrl = PROXIES[i](oembedUrl);
+        console.log(`🔄 비메오 데이터 가져오기 시도 (프록시 ${i + 1}/${PROXIES.length})...`);
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+        const response = await fetch(proxyUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          console.warn(`⚠️ 프록시 ${i + 1} 실패: ${response.status}`);
+          continue;
+        }
+
+        const data = await response.json();
+        console.log('✅ 비메오 OEmbed 데이터 성공:', data);
+
+        return {
+          title: data.title || "Vimeo Video",
+          subtitle: data.author_name || "Vimeo",
+          description: data.description?.slice(0, 100) || "감성 영상",
+          imageUrl: data.thumbnail_url,
+          url: url,
+          themeColor: "#1AB7EA",
+          isEditable: false
+        };
+      } catch (proxyError) {
+        console.warn(`⚠️ 프록시 ${i + 1} 에러:`, proxyError);
+        if (i === PROXIES.length - 1) throw proxyError;
+      }
+    }
+
+    throw new Error("All proxies failed");
+
+  } catch (e) {
+    console.error("❌ Vimeo OEmbed Fetch 완전 실패:", e);
+    return {
+      title: "Vimeo Video",
+      subtitle: "Vimeo",
+      description: "비메오 링크를 저장했습니다. 링크를 클릭하여 확인하세요.",
+      imageUrl: "",
+      url: url,
+      themeColor: "#1AB7EA",
+      isEditable: true
+    };
+  }
+};
+
+// 📺 YouTube: Zero-Quota Strategy (Regex + OEmbed)
+const fetchYoutube = async (url: string): Promise<ScrapMetadata | null> => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    const videoId = (match && match[2].length === 11) ? match[2] : null;
+
+    if (!videoId) {
+        console.warn("⚠️ YouTube 비디오 ID를 찾을 수 없습니다");
+        return null;
+    }
+
+    // Try OEmbed for Title (No API Key needed, High Quota)
+    let title = "YouTube Video";
+    let author = "YouTube";
+    try {
+        console.log("🔄 YouTube OEmbed 데이터 가져오기...");
+        const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`;
+        
+        // 타임아웃 설정 (5초)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch(oembedUrl, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        if (response.ok) {
+            const data = await response.json();
+            title = data.title || title;
+            author = data.author_name || author;
+            console.log("✅ YouTube OEmbed 데이터 성공:", { title, author });
+        } else {
+            console.warn("⚠️ YouTube OEmbed 실패, 기본 정보 사용");
+        }
+    } catch (e) {
+        console.warn("⚠️ YouTube OEmbed 에러, 기본 정보 사용:", e);
+        // Ignore oEmbed failure, fallback to basic ID
+    }
+
+    return {
+      title: title,
+      subtitle: author,
+      description: "Watch on YouTube",
+      imageUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+      url: url,
+      themeColor: "#FF0000",
+      isEditable: false,
+      // Default config, can be overridden by user modal
+      youtubeConfig: { mode: 'player', startTime: 0 }
+    };
+};
+
+// 🤖 General/Commerce: Gemini AI with Grounding
+const fetchWithGemini = async (url: string, type: ScrapType): Promise<ScrapMetadata> => {
+    try {
+        // API 키 확인
+        if (!process.env.API_KEY) {
+            console.warn("⚠️ API_KEY가 설정되지 않았습니다. Fallback 데이터 사용");
+            throw new Error("API_KEY not configured");
+        }
+
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        
+        // Explicit prompt for JSON structure
+        const prompt = `
+          I am a web scraper. Analyze this URL: "${url}" (Type: ${type}).
+          
+          Extract or infer the following details in strict JSON format:
+          {
+            "title": "Main title, book name, or product name",
+            "subtitle": "Author, Brand, Website Name, or Price",
+            "description": "Short summary (max 120 chars)",
+            "themeColor": "Hex color code matching the content (e.g. #FF0000)",
+            "imageKeyword": "A single visual keyword to search for a background image if scraping fails"
+          }
+          
+          Use Google Search Grounding to find real information.
+        `;
+
+        // 타임아웃 설정 (10초)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+            controller.abort();
+            console.warn("⚠️ Gemini API 타임아웃");
+        }, 10000);
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                tools: [{ googleSearch: {} }],
+                responseMimeType: "application/json"
+            }
+        });
+
+        clearTimeout(timeoutId);
+
+        const jsonText = response.text || "{}";
+        let json;
+        try {
+            json = JSON.parse(jsonText);
+        } catch {
+            console.warn("⚠️ JSON Parse Failed, using fallback");
+            json = { title: "Web Scrap", subtitle: "Website" };
+        }
+        
+        // Deterministic Image Seed
+        const seed = encodeURIComponent(json.imageKeyword || json.title || 'scrap');
+        let imageUrl = `https://picsum.photos/seed/${seed}/400/400`;
+        
+        // Context-aware sizing
+        if (type === ScrapType.BOOK) imageUrl = `https://picsum.photos/seed/${seed}/300/450`;
+        if (type === ScrapType.FASHION) imageUrl = `https://picsum.photos/seed/${seed}/400/500`;
+
+        // 도메인별 브랜드 색상 매핑
+        let themeColor = json.themeColor || "#000000";
+        
+        // 기존 패션 사이트
+        if (url.includes("musinsa.com")) themeColor = "#000000";
+        else if (url.includes("29cm.co.kr")) themeColor = "#000000";
+        
+        // 👇 [추가] 패션 & 매거진 사이트
+        else if (url.includes("wconcept.co.kr")) themeColor = "#000000"; // W컨셉 (블랙)
+        else if (url.includes("kream.co.kr")) themeColor = "#EF6253";   // 크림 (오렌지)
+        else if (url.includes("vogue.co.kr")) themeColor = "#E91E63";   // 보그 (레드/핑크)
+        else if (url.includes("elle.co.kr")) themeColor = "#000000";    // 엘르 (블랙)
+        
+        // 기타 브랜드
+        else if (url.includes("nike.com")) themeColor = "#111111";
+        else if (url.includes("adidas.com")) themeColor = "#000000";
+        else if (url.includes("uniqlo.com")) themeColor = "#FF0000";
+
+        return {
+            title: json.title || "Web Scrap",
+            subtitle: json.subtitle || new URL(url).hostname,
+            description: json.description || "",
+            imageUrl: imageUrl, 
+            url: url,
+            themeColor: themeColor,
+            isEditable: false
+        };
+
+    } catch (e) {
+        console.error("❌ Gemini Fetch Failed:", e);
+        
+        // Fallback: URL에서 도메인 이름 추출
+        let hostname = "Website";
+        try {
+            hostname = new URL(url).hostname.replace('www.', '');
+        } catch {}
+
+        // 기본 데이터 반환
+        return {
+            title: hostname,
+            subtitle: "웹 링크",
+            description: "자동 로드에 실패했습니다. 링크를 클릭하여 확인하세요.",
+            imageUrl: `https://picsum.photos/seed/${Date.now()}/400/400`,
+            url: url,
+            themeColor: "#64748b",
+            isEditable: true // 사용자가 직접 편집 가능
+        };
+    }
+};
+
+// --- 3. Main Facade (The "Proxy") ---
+
+export const fetchMetadata = async (url: string, type: ScrapType): Promise<ScrapMetadata> => {
+    // ⚠️ DEPRECATED - 정책 위반
+    console.error('❌ geminiService.fetchMetadata는 더 이상 사용되지 않습니다!');
+    console.error('❌ 이유: 클라이언트 CORS 프록시 사용으로 플랫폼 ToS 위반');
+    console.error('✅ 대신 services/apiClient.ts의 fetchMetadata를 사용하세요.');
+    
+    throw new Error(
+      '정책 위반: geminiService는 deprecated되었습니다. ' +
+      'services/apiClient.ts를 사용하거나 /api/scrap API를 호출하세요.'
+    );
+    
+    // A. Check Cache First (Zero-Latency Return)
+    const cached = getCachedData(url);
+    if (cached) {
+        console.log(`⚡ Cache Hit: ${url}`);
+        return cached;
+    }
+
+    console.log(`🔄 Fetching Fresh: ${url}`);
+    let result: ScrapMetadata | null = null;
+
+    try {
+        // B. Route Logic based on Type
+        switch (type) {
+            case ScrapType.MOVING_PHOTO:
+                const isVideo = url.toLowerCase().endsWith('.mp4');
+                result = {
+                    title: "Moving Photo",
+                    subtitle: isVideo ? "Video Loop" : "Animated GIF",
+                    description: "",
+                    imageUrl: isVideo ? "" : url, // For video, we rely on videoUrl. For GIF, imageUrl.
+                    videoUrl: isVideo ? url : undefined,
+                    url: url,
+                    isEditable: true,
+                    themeColor: "#000000"
+                };
+                break;
+            case ScrapType.PINTEREST:
+                result = await fetchPinterest(url);
+                break;
+            case ScrapType.YOUTUBE:
+                result = await fetchYoutube(url);
+                break;
+            case ScrapType.SPOTIFY:
+                result = await fetchSpotify(url);
+                break;
+            case ScrapType.TIKTOK:
+                result = await fetchTikTok(url);
+                break;
+            case ScrapType.VIMEO:
+                result = await fetchVimeo(url);
+                break;
+            case ScrapType.TWITTER:
+                // 🐦 트위터 OEmbed HTML 가져오기
+                result = await fetchTwitterOEmbed(url);
+                break;
+            case ScrapType.INSTAGRAM:
+                // Client-side Embeds don't need heavy fetching
+                // We return minimal metadata and let the Embed component do the work
+                result = {
+                    title: "Instagram Post",
+                    subtitle: "Instagram",
+                    description: "",
+                    imageUrl: "",
+                    url: url,
+                    themeColor: "#E1306C",
+                    isEditable: false
+                };
+                break;
+            default:
+                // For General, Book, Fashion: Use AI
+                result = await fetchWithGemini(url, type);
+                break;
+        }
+    } catch (error) {
+        console.error("Scraping failed:", error);
+        result = null;
+    }
+
+    // C. Default Fallback & Cache Write
+    const finalData = result || {
+        title: "New Scrap Object",
+        subtitle: "Click to Edit",
+        description: "Could not load details automatically.",
+        url: url,
+        imageUrl: `https://picsum.photos/seed/${Date.now()}/400/400`,
+        themeColor: "#64748b",
+        isEditable: true
+    };
+
+    setCachedData(url, finalData);
+    return finalData;
+};

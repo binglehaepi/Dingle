@@ -1,0 +1,25 @@
+{
+  "name": "digitalscrapdiary",
+  "productName": "Digital Scrap Diary",
+  "version": "1.0.0",
+  "description": "A digital scrapbook diary app with auto-save, backup history, and advanced export features",
+  "author": {
+    "name": "Digital Scrap Diary Team",
+    "email": "support@digitalscrapdiary.app"
+  },
+  "license": "MIT",
+  "private": true,
+  "main": "dist-electron/main.js",
+  "homepage": "https://digitalscrapdiary.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/digitalscrapdiary.git"
+  },
+  "dependencies": {
+    "@google/genai": "^1.33.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-social-media-embed": "2.5.1",
+    "react-youtube": "10.1.0"
+  }
+}

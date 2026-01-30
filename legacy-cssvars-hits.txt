@@ -1,0 +1,91 @@
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:59: --desk-bg: #ffffff;              /* 바깥 배경 (Desk) */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:60: --paper-bg: #f7f5ed;             /* 노트/위젯/달력 내부 바탕 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:63: --border-color: #764737;         /* 테두리 선색 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:64: --line-color: #764737;           /* 호환성 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:65: --text-color: #764737;           /* UI 폰트색 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:71: --widget-bg: #FFFFFF;            /* 위젯 내부 칸 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:72: --bar-profile: #F9D4F0;          /* 프로필 위젯 바 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:73: --bar-goals: #FEDFDC;            /* Monthly Goals 바 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:74: --bar-dday: #FCF5C8;             /* D-day 바 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:75: --bar-ohaasa: #EBE7F5;           /* 오하아사 바 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:76: --bar-bucket: #EFF1AA;           /* Bucket List 바 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:79: --cd-bg: #F4F5E1;                /* CD 배경 패널 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:83: --calendar-bar: #f7f5ed;         /* 달력 요일 바 (헤더색) */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:86: --today-bg: #FFFCE1;             /* 호환성 */
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:101: --keyring-main: #764737;
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:132: background-color: var(--desk-bg, #ffffff);
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:202: background: var(--paper-bg, #FFFFFF) !important;
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:203: border: 1px solid var(--border-color, #FEB69F) !important;
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:213: border-bottom: 1px solid var(--border-color, #FEB69F);
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:221: color: var(--text-color, #FEB69F);
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:227: background: var(--bar-profile, #F9D4F0);
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:230: background: var(--bar-goals, #FEDFDC);
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:233: background: var(--bar-dday, #FCF5C8);
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:236: background: var(--bar-ohaasa, #EBE7F5);
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:239: background: var(--bar-bucket, #EFF1AA);
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:242: background: var(--cd-bg, #F4F5E1) !important;
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:247: background: var(--widget-bg, #FEF5F5) !important;
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:248: border-color: var(--border-color, #FEB69F) !important;
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:254: background-color: var(--calendar-bar, #f7f5ed) !important;
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:255: border-color: var(--border-color, #764737) !important;
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:267: border-color: var(--border-color, #FEB69F) !important;
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:268: color: var(--text-color, #FEB69F) !important;
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:285: border-color: var(--border-color, #FEB69F) !important;
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:300: border: 1px dashed var(--border-color, #FEB69F);
+C:\Users\User\Desktop\digitalscrapdiary-2\index.html:310: background-color: var(--paper-bg);
+C:\Users\User\Desktop\digitalscrapdiary-2\components\Keyring.tsx:34: <div className="w-4 h-6 rounded-full relative" style={{ border: '2px solid var(--keyring-main)', background: 'transparent' }}>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\Keyring.tsx:38: <div className="-mt-0.5 w-2 h-4 rounded-full" style={{ border: '1.5px solid var(--keyring-main)' }}></div>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\Keyring.tsx:39: <div className="-mt-0.5 w-2 h-4 rounded-full" style={{ border: '1.5px solid var(--keyring-main)' }}></div>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\Keyring.tsx:40: <div className="-mt-0.5 w-2 h-4 rounded-full" style={{ border: '1.5px solid var(--keyring-main)' }}></div>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\Keyring.tsx:41: <div className="-mt-0.5 w-2 h-4 rounded-full" style={{ border: '1.5px solid var(--keyring-main)' }}></div>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:6: { label: 'Desk 배경색 (바깥)', name: '--desk-bg', type: 'color' },
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:10: { label: '테두리 선 색', name: '--line-color', type: 'color' },
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:11: { label: '텍스트 색', name: '--text-color', type: 'color' },
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:14: { label: '프로필 위젯 바', name: '--bar-profile', type: 'color' },
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:15: { label: '목표 위젯 바', name: '--bar-monthly', type: 'color' },
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:16: { label: '디데이 위젯 바', name: '--bar-dday', type: 'color' },
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:17: { label: '오하아사 위젯 바', name: '--bar-ohaasa', type: 'color' },
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:18: { label: '버킷리스트 위젯 바', name: '--bar-bucket', type: 'color' },
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:126: '--desk-bg': '#FDF8FF',
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:128: '--line-color': '#feb69f',
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:129: '--text-color': '#693721',
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:130: '--bar-profile': '#f9d4f0',
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:131: '--bar-monthly': '#fedfdc',
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:132: '--bar-dday': '#fcf5c8',
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:133: '--bar-ohaasa': '#ebe7f5',
+C:\Users\User\Desktop\digitalscrapdiary-2\components\WidgetEditor.tsx:134: '--bar-bucket': '#eff1aa',
+C:\Users\User\Desktop\digitalscrapdiary-2\components\items\OhaAsaWidget.tsx:21: backgroundColor: 'var(--paper-bg)',
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:293: style={{ color: 'var(--text-color-primary, #764737)' }}
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:302: style={{ color: 'var(--text-color-primary, #764737)' }}
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:312: <span className="text-[8px] leading-none" style={{ color: 'var(--text-color-primary, #764737)', opacity: 0.5 }}>+</span>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:349: style={{ color: 'var(--text-color-primary, #764737)' }}
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:396: <span className="text-xs drop-shadow-md" style={{ color: 'var(--text-color-primary, #764737)' }}>Change photo</span>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:422: color: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:446: color: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:473: accentColor: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:476: <span className={`flex-1 text-xs ${item.completed ? 'line-through opacity-50' : ''}`} style={{ color: 'var(--text-color-primary, #764737)' }}>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:535: style={{ color: 'var(--text-color-primary, #764737)' }}
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:542: style={{ color: 'var(--text-color-primary, #764737)', opacity: 0.7 }}
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:558: color: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:575: style={{ color: 'var(--text-color-primary, #764737)' }}
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:605: <div className="text-[9px] font-medium" style={{ color: 'var(--text-color-primary, #764737)' }}>@Hi_Ohaasa</div>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:606: <div className="text-[8px] opacity-0 group-hover:opacity-100 transition-opacity mt-1" style={{ color: 'var(--text-color-primary, #764737)', opacity: 0.7 }}>Click to visit</div>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:666: color: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:690: <svg className="w-10 h-10 drop-shadow-md" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--text-color-primary, #764737)' }}><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:692: <svg className="w-10 h-10 drop-shadow-md ml-1" viewBox="0 0 24 24" fill="currentColor" style={{ color: 'var(--text-color-primary, #764737)' }}><path d="M8 5v14l11-7z"/></svg>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:712: color: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:731: color: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:757: <span className="text-[10px] font-bold" style={{ color: 'var(--text-color-primary, #764737)' }}>LINK</span>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:773: color: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:793: color: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:849: color: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:876: accentColor: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:879: <span className={`flex-1 text-xs ${item.completed ? 'line-through opacity-50' : ''}`} style={{ color: 'var(--text-color-primary, #764737)' }}>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:890: style={{ color: 'var(--text-color-primary, #764737)' }}
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:936: style={{ color: 'var(--text-color-primary, #764737)' }}
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:956: color: 'var(--text-color-primary, #764737)',
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:982: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--text-color-primary, #764737)' }}>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:989: color: 'var(--text-color-primary, #764737)',
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:1012: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--text-color-primary, #764737)' }}>
+C:\Users\User\Desktop\digitalscrapdiary-2\components\layouts\MonthlySpread.tsx:1041: color: 'var(--text-color-primary, #764737)'
+C:\Users\User\Desktop\digitalscrapdiary-2\utils\cssVariables.ts:59: '--text-color-primary': palette.textColorPrimary,

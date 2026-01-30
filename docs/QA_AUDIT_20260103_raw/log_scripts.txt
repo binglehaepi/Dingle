@@ -1,0 +1,15 @@
+﻿{
+    "dev":  "vite",
+    "build":  "vite build",
+    "preview":  "vite preview",
+    "ui:selftest":  "node scripts/uiSelftest.mjs",
+    "electron:compile":  "tsc -p electron/tsconfig.json",
+    "electron:dev":  "concurrently \"vite\" \"wait-on http://localhost:3000 \u0026\u0026 npm run electron:compile \u0026\u0026 electron .\"",
+    "electron:build":  "vite build \u0026\u0026 npm run electron:compile \u0026\u0026 electron-builder",
+    "electron:build:mac":  "CSC_IDENTITY_AUTO_DISCOVERY=false vite build \u0026\u0026 npm run electron:compile \u0026\u0026 electron-builder --mac",
+    "electron:build:win":  "vite build \u0026\u0026 npm run electron:compile \u0026\u0026 electron-builder --win",
+    "electron:build:linux":  "vite build \u0026\u0026 npm run electron:compile \u0026\u0026 electron-builder --linux",
+    "clean:xattr":  "xattr -cr . 2\u003e/dev/null || true",
+    "clean:release":  "rm -rf release dist dist-electron",
+    "prebuild:signed":  "npm run clean:xattr \u0026\u0026 echo \u0027?좑툘  ?쒕챸 鍮뚮뱶 ??xattr ?뺣━ ?꾨즺. iCloud/Dropbox 寃쎈줈 ?뺤씤 ?꾩슂!\u0027"
+}

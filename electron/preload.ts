@@ -1,0 +1,196 @@
+/**
+ * Electron Preload 스크립트
+ * 
+ * 역할:
+ * - Main 프로세스와 Renderer 프로세스 사이의 안전한 브릿지
+ * - contextBridge로 제한된 API만 노출
+ */
+
+import { contextBridge, ipcRenderer } from 'electron';
+
+// ═══════════════════════════════════════════════════════
+// 🔒 안전한 API 노출
+// ═══════════════════════════════════════════════════════
+
+contextBridge.exposeInMainWorld('electron', {
+  // --- 환경 감지 ---
+  isElectron: true,
+  
+  // --- 앱 정보 ---
+  getPaths: () => ipcRenderer.invoke('app:getPaths'),
+  getVersion: () => ipcRenderer.invoke('app:getVersion'),
+
+  // --- 다이얼로그 ---
+  showSaveDialog: (options?: {
+    defaultPath?: string;
+    filters?: { name: string; extensions: string[] }[];
+  }) => ipcRenderer.invoke('dialog:showSave', options),
+
+  showOpenDialog: (options?: {
+    filters?: { name: string; extensions: string[] }[];
+    properties?: string[];
+  }) => ipcRenderer.invoke('dialog:showOpen', options),
+
+  // --- 파일 시스템 ---
+  writeFile: (filePath: string, data: string | Buffer) => 
+    ipcRenderer.invoke('fs:writeFile', filePath, data),
+
+  readFile: (filePath: string) => 
+    ipcRenderer.invoke('fs:readFile', filePath),
+
+  exists: (filePath: string) => 
+    ipcRenderer.invoke('fs:exists', filePath),
+
+  listDirectory: (dirPath: string) =>
+    ipcRenderer.invoke('fs:listDirectory', dirPath),
+
+  // --- 내보내기 ---
+  exportPNG: () => ipcRenderer.invoke('export:png'),
+  exportPDF: () => ipcRenderer.invoke('export:pdf'),
+
+  // --- OhaAsa Horoscope ---
+  ohaasaHoroscope: (params: { date: string; sign: string }) => ipcRenderer.invoke('ohaasa:horoscope', params),
+
+  // --- 외부 링크 열기 ---
+  openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
+
+  // --- dingel-media (No-Copy local media) ---
+  registerMediaImportRoot: (params: { importId: string; importRoot: string }) =>
+    ipcRenderer.invoke('dingelMedia:registerImportRoot', params),
+
+  // --- 자동 업데이트 ---
+  updateCheck: () => ipcRenderer.invoke('update:check'),
+  updateDownload: () => ipcRenderer.invoke('update:download'),
+  updateInstall: () => ipcRenderer.invoke('update:install'),
+  
+  // 업데이트 이벤트 리스너
+  onUpdateChecking: (callback: () => void) => {
+    ipcRenderer.on('update:checking', callback);
+    return () => ipcRenderer.removeListener('update:checking', callback);
+  },
+  onUpdateAvailable: (callback: (info: any) => void) => {
+    ipcRenderer.on('update:available', (_event, info) => callback(info));
+    return () => ipcRenderer.removeListener('update:available', callback);
+  },
+  onUpdateNotAvailable: (callback: (info: any) => void) => {
+    ipcRenderer.on('update:not-available', (_event, info) => callback(info));
+    return () => ipcRenderer.removeListener('update:not-available', callback);
+  },
+  onUpdateDownloadProgress: (callback: (progress: any) => void) => {
+    ipcRenderer.on('update:download-progress', (_event, progress) => callback(progress));
+    return () => ipcRenderer.removeListener('update:download-progress', callback);
+  },
+  onUpdateDownloaded: (callback: (info: any) => void) => {
+    ipcRenderer.on('update:downloaded', (_event, info) => callback(info));
+    return () => ipcRenderer.removeListener('update:downloaded', callback);
+  },
+  onUpdateError: (callback: (error: any) => void) => {
+    ipcRenderer.on('update:error', (_event, error) => callback(error));
+    return () => ipcRenderer.removeListener('update:error', callback);
+  },
+});
+// ═══════════════════════════════════════════════════════
+// 📝 TypeScript 타입 정의
+// ═══════════════════════════════════════════════════════
+
+export interface ElectronAPI {
+  isElectron: boolean;
+  
+  // 앱 정보
+  getPaths: () => Promise<{
+    documents: string;
+    userData: string;
+    diaryDir: string;
+  }>;
+  
+  getVersion: () => Promise<{
+    app: string;
+    electron: string;
+    chrome: string;
+    node: string;
+  }>;
+
+  // 다이얼로그
+  showSaveDialog: (options?: {
+    defaultPath?: string;
+    filters?: { name: string; extensions: string[] }[];
+  }) => Promise<{
+    canceled: boolean;
+    filePath?: string;
+  }>;
+
+  showOpenDialog: (options?: {
+    filters?: { name: string; extensions: string[] }[];
+    properties?: string[];
+  }) => Promise<{
+    canceled: boolean;
+    filePaths: string[];
+  }>;
+
+  // 파일 시스템
+  writeFile: (filePath: string, data: string | Buffer) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
+
+  readFile: (filePath: string) => Promise<{
+    success: boolean;
+    data?: string;
+    error?: string;
+  }>;
+
+  exists: (filePath: string) => Promise<boolean>;
+
+  listDirectory: (dirPath: string) => Promise<string[]>;
+
+  // 내보내기
+  exportPNG: () => Promise<{
+    success: boolean;
+    filePath?: string;
+    canceled?: boolean;
+    error?: string;
+  }>;
+
+  exportPDF: () => Promise<{
+    success: boolean;
+    filePath?: string;
+    canceled?: boolean;
+    error?: string;
+  }>;
+
+  // OhaAsa
+  ohaasaHoroscope: (params: { date: string; sign: string }) => Promise<{
+    date: string;
+    sign: string;
+    rank: number;
+    textJa?: string;
+    textKo?: string;
+    sourceUrl: string;
+  }>;
+
+  // 외부 링크
+  openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;
+
+  // dingel-media
+  registerMediaImportRoot: (params: { importId: string; importRoot: string }) => Promise<{ success: boolean; error?: string }>;
+
+  // 자동 업데이트
+  updateCheck: () => Promise<{ success: boolean; updateInfo?: any; message?: string; error?: string }>;
+  updateDownload: () => Promise<{ success: boolean; message?: string; error?: string }>;
+  updateInstall: () => Promise<{ success: boolean }>;
+  
+  onUpdateChecking: (callback: () => void) => () => void;
+  onUpdateAvailable: (callback: (info: { version: string; releaseDate: string; releaseNotes?: string }) => void) => () => void;
+  onUpdateNotAvailable: (callback: (info: { version: string }) => void) => () => void;
+  onUpdateDownloadProgress: (callback: (progress: { percent: number; transferred: number; total: number }) => void) => () => void;
+  onUpdateDownloaded: (callback: (info: { version: string; releaseNotes?: string }) => void) => () => void;
+  onUpdateError: (callback: (error: { message: string }) => void) => () => void;
+}
+
+declare global {
+  interface Window {
+    electron: ElectronAPI;
+  }
+}
+
+
