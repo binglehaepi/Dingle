@@ -45,7 +45,7 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.invoke('fs:listDirectory', dirPath),
 
   // --- 내보내기 ---
-  exportPNG: () => ipcRenderer.invoke('export:png'),
+  // exportPNG: () => ipcRenderer.invoke('export:png'), // Removed for MVP
   exportPDF: () => ipcRenderer.invoke('export:pdf'),
 
   // --- OhaAsa Horoscope ---

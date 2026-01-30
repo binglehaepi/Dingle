@@ -1395,30 +1395,8 @@ ipcMain.handle('fs:listDirectory', async (_event, dirPath: string) => {
 
 // --- 내보내기 (Phase 4) ---
 
-ipcMain.handle('export:png', async () => {
-  if (!appWin) return { success: false, error: 'No window' };
-
-  try {
-    // 저장 다이얼로그
-    const { filePath, canceled } = await dialog.showSaveDialog(appWin, {
-      defaultPath: path.join(getDiaryDir(), `diary-${Date.now()}.png`),
-      filters: [{ name: 'PNG Image', extensions: ['png'] }],
-    });
-
-    if (canceled || !filePath) {
-      return { success: false, canceled: true };
-    }
-
-    // 현재 페이지 캡처
-    const image = await appWin.webContents.capturePage();
-    await fs.writeFile(filePath, image.toPNG());
-
-    return { success: true, filePath };
-  } catch (error) {
-    console.error('PNG export failed:', error);
-    return { success: false, error: String(error) };
-  }
-});
+// PNG export removed - not needed for MVP
+// ipcMain.handle('export:png', async () => { ... });
 
 ipcMain.handle('export:pdf', async () => {
   if (!appWin) return { success: false, error: 'No window' };

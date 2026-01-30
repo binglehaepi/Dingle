@@ -42,6 +42,32 @@ const DiaryManager: React.FC = () => {
   useEffect(() => {
     loadDiaries();
     
+    // 🚀 자동 다이어리 열기 (첫 실행 시)
+    const autoOpenDiary = async () => {
+      if (!window.electron) return;
+      
+      try {
+        const result = await window.electron.diaryList();
+        if (result.success && result.diaries.length > 0) {
+          // 첫 번째 다이어리 자동 열기
+          console.log('[DiaryManager] Auto-opening first diary:', result.diaries[0].id);
+          await window.electron.diaryOpenInOverlay(result.diaries[0].id);
+        } else if (result.success && result.diaries.length === 0) {
+          // 다이어리가 없으면 자동 생성 후 열기
+          console.log('[DiaryManager] No diaries found, creating default diary...');
+          const createResult = await window.electron.diaryCreate('나의 다이어리', '#ffc9d4', 'solid');
+          if (createResult.success && createResult.diaryId) {
+            console.log('[DiaryManager] Auto-opening newly created diary:', createResult.diaryId);
+            await window.electron.diaryOpenInOverlay(createResult.diaryId);
+          }
+        }
+      } catch (error) {
+        console.error('[DiaryManager] Auto-open failed:', error);
+      }
+    };
+    
+    autoOpenDiary();
+    
     // Export 진행도 리스너 등록
     if (window.electron) {
       const handleProgress = (_event: any, data: { current: number; total: number; status: string }) => {

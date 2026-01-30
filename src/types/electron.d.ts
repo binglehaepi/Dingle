@@ -53,12 +53,13 @@ export interface ElectronAPI {
   exists: (filePath: string) => Promise<boolean>;
 
   // 내보내기
-  exportPNG: () => Promise<{
-    success: boolean;
-    filePath?: string;
-    canceled?: boolean;
-    error?: string;
-  }>;
+  // exportPNG removed for MVP
+  // exportPNG: () => Promise<{
+  //   success: boolean;
+  //   filePath?: string;
+  //   canceled?: boolean;
+  //   error?: string;
+  // }>;
 
   exportPDF: () => Promise<{
     success: boolean;

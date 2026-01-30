@@ -234,8 +234,27 @@ export async function loadDiaryFromFile(): Promise<DiaryData | null> {
       return null;
     }
 
-    // JSON 파싱
-    const data = JSON.parse(result.data) as DiaryData;
+    // JSON 파싱 (에러 처리 강화)
+    let data: DiaryData;
+    try {
+      data = JSON.parse(result.data) as DiaryData;
+    } catch (parseError) {
+      console.error('❌ JSON 파싱 실패:', parseError);
+      console.log('🔄 백업 파일에서 복구 시도...');
+      
+      // 백업에서 복구 시도
+      try {
+        const backupData = await loadLatestBackup();
+        if (backupData) {
+          console.log('✅ 백업에서 복구 성공!');
+          return backupData;
+        }
+      } catch (backupError) {
+        console.error('❌ 백업 복구 실패:', backupError);
+      }
+      
+      return null;
+    }
 
     // stylePref 마이그레이션 (uiTokens 포함)
     if (data?.stylePref) {

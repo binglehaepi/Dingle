@@ -235,6 +235,15 @@ export function useItemHandlers({ state, isMobile, pageOffset, formatDateKey, fo
 
   // --- URL 스크랩 ---
   const handleScrap = useCallback(async (url: string) => {
+    // ✅ URL 검증 추가
+    try {
+      new URL(url);
+    } catch {
+      setToastMsg('❌ 올바른 URL을 입력해주세요');
+      setTimeout(() => setToastMsg(''), 3000);
+      return;
+    }
+    
     setLoading(true);
     try {
       const type = parseUrlType(url);
@@ -283,6 +292,15 @@ export function useItemHandlers({ state, isMobile, pageOffset, formatDateKey, fo
 
   // --- URL 스크랩 (특정 날짜로 생성: Link Dock 전용) ---
   const handleScrapToDate = useCallback(async (url: string, targetDateKey: string) => {
+    // ✅ URL 검증 추가
+    try {
+      new URL(url);
+    } catch {
+      setToastMsg('❌ 올바른 URL을 입력해주세요');
+      setTimeout(() => setToastMsg(''), 3000);
+      return null;
+    }
+    
     if (!targetDateKey) return null;
     setLoading(true);
     try {
