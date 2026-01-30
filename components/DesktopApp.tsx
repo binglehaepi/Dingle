@@ -19,6 +19,8 @@ import ExportOptionsDialog, { ExportOptions } from './ExportOptionsDialog';
 import PaletteEditorModal from './PaletteEditorModal';
 import LinkDecorationPanel from './LinkDecorationPanel';
 import EmbedPreviewModal from './EmbedPreviewModal';
+import SettingsPanel from './panels/SettingsPanel';
+import UIPanel from './panels/UIPanel';
 import { EMBED_PREVIEW_EVENT, type EmbedPreviewOpenDetail } from '../utils/embedPreview';
 
 interface DesktopAppProps {
@@ -91,8 +93,8 @@ interface DesktopAppProps {
 const DesktopApp: React.FC<DesktopAppProps> = (props) => {
   // 툴바 숨김 상태 (캡처 시 사용)
   const [hideToolbar, setHideToolbar] = useState(false);
-  // ✅ 고급 설정 패널 (MVP UI 개선)
-  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  // ✅ 슬라이드 패널 (설정/UI 탭)
+  const [activePanel, setActivePanel] = useState<'settings' | 'ui' | null>(null);
   // ✅ 선택된 아이템 (링크/임베드 꾸미기 MVP)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [embedPreview, setEmbedPreview] = useState<{ url: string; title?: string } | null>(null);
@@ -412,6 +414,40 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
             <div 
               ref={bookRef}
               className="flex-1 relative"
+              onMouseDown={(e) => {
+                // 다이어리 여백 드래그 (카드 영역 제외)
+                if (!window.electron?.send) return;
+                
+                const target = e.target as HTMLElement;
+                // 카드, 버튼, 입력 필드 등은 드래그하지 않음
+                if (
+                  target.closest('[data-scrap-item]') ||
+                  target.closest('button') ||
+                  target.closest('input') ||
+                  target.closest('textarea') ||
+                  target.closest('[data-draggable]') ||
+                  target.closest('[data-month-tab]') ||
+                  target.closest('[data-charm]')
+                ) {
+                  return;
+                }
+                
+                e.preventDefault();
+                window.electron.send('window:dragStart', e.screenX, e.screenY);
+                
+                const handleMouseMove = (moveEvent: MouseEvent) => {
+                  window.electron.send?.('window:dragMove', moveEvent.screenX, moveEvent.screenY);
+                };
+                
+                const handleMouseUp = () => {
+                  window.electron.send?.('window:dragEnd');
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                };
+                
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+              }}
             >
               {/* LINK BAR */}
               {(currentLayout === 'free' || currentLayout === 'scrap_page') && (
@@ -568,7 +604,10 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
               <button 
                 data-month-tab
                 {...(currentLayout === 'scrap_page' ? { 'data-month-tab-active': 'true' } : {})}
-                onClick={() => changeLayout('scrap_page')}
+                onClick={() => {
+                  changeLayout('scrap_page');
+                  setActivePanel(null); // 패널 닫기
+                }}
                 className={`
                   w-12 h-12 rounded-r-md flex items-center justify-center border border-l-0 transition-transform hover:translate-x-1 active:scale-95 mt-2 touch-manipulation
                   ${currentLayout === 'scrap_page' ? 'translate-x-1' : ''}
@@ -582,6 +621,48 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
                   <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
+                </svg>
+              </button>
+              
+              {/* Settings Tab */}
+              <button 
+                data-month-tab
+                {...(activePanel === 'settings' ? { 'data-month-tab-active': 'true' } : {})}
+                onClick={() => setActivePanel(activePanel === 'settings' ? null : 'settings')}
+                className={`
+                  w-12 h-12 rounded-r-md flex items-center justify-center border border-l-0 transition-transform hover:translate-x-1 active:scale-95 mt-2 touch-manipulation
+                  ${activePanel === 'settings' ? 'translate-x-1' : ''}
+                `}
+                style={{
+                  backgroundColor: activePanel === 'settings' ? 'var(--month-tab-bg-active)' : 'var(--month-tab-bg)',
+                  borderColor: 'var(--month-tab-border-color, var(--ui-stroke-color, #764737))',
+                  color: 'var(--month-tab-text-color)'
+                }}
+                title="설정"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                  <path fillRule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 00-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.875 1.875 0 00-2.282.819l-.922 1.597a1.875 1.875 0 00.432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 000 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 00-.432 2.385l.922 1.597a1.875 1.875 0 002.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 002.28-.819l.923-1.597a1.875 1.875 0 00-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 000-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 00-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 00-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 00-1.85-1.567h-1.843zM12 15.75a3.75 3.75 0 100-7.5 3.75 3.75 0 000 7.5z" clipRule="evenodd" />
+                </svg>
+              </button>
+              
+              {/* UI Tab */}
+              <button 
+                data-month-tab
+                {...(activePanel === 'ui' ? { 'data-month-tab-active': 'true' } : {})}
+                onClick={() => setActivePanel(activePanel === 'ui' ? null : 'ui')}
+                className={`
+                  w-12 h-12 rounded-r-md flex items-center justify-center border border-l-0 transition-transform hover:translate-x-1 active:scale-95 mt-1 touch-manipulation
+                  ${activePanel === 'ui' ? 'translate-x-1' : ''}
+                `}
+                style={{
+                  backgroundColor: activePanel === 'ui' ? 'var(--month-tab-bg-active)' : 'var(--month-tab-bg)',
+                  borderColor: 'var(--month-tab-border-color, var(--ui-stroke-color, #764737))',
+                  color: 'var(--month-tab-text-color)'
+                }}
+                title="꾸미기"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                  <path fillRule="evenodd" d="M20.599 1.5c-.376 0-.743.111-1.055.32l-5.08 3.385a18.747 18.747 0 00-3.471 2.987 10.04 10.04 0 014.815 4.815 18.748 18.748 0 002.987-3.472l3.386-5.079A1.902 1.902 0 0020.599 1.5zm-8.3 14.025a18.76 18.76 0 001.896-1.207 8.026 8.026 0 00-4.513-4.513A18.75 18.75 0 008.475 11.7l-.278.5a5.26 5.26 0 013.601 3.602l.502-.278zM6.75 13.5A3.75 3.75 0 003 17.25a1.5 1.5 0 01-1.601 1.497.75.75 0 00-.7 1.123 5.25 5.25 0 009.8-2.62 3.75 3.75 0 00-3.75-3.75z" clipRule="evenodd" />
                 </svg>
               </button>
             </div>
@@ -606,91 +687,6 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
 
       {/* UI Overlays */}
 
-      {/* Desktop: 우측 툴바 (간소화) */}
-      {deviceMode === 'desktop' && !hideToolbar && (
-        <div className="fixed top-8 right-8 z-[100] flex flex-col gap-3">
-          {/* 설정 버튼 (주요 버튼) */}
-          <button 
-            onClick={() => setShowPaletteEditor(true)}
-            className="w-12 h-12 bg-white rounded-full shadow-md border border-stone-200 flex items-center justify-center text-stone-600 hover:text-pink-500 hover:scale-105 active:scale-95 transition-all touch-manipulation relative"
-            title="색상 팔레트 편집 (1:1 매핑)"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" clipRule="evenodd" />
-            </svg>
-          </button>
-
-          {/* 고급 설정 버튼 (토글) */}
-          <button 
-            onClick={() => setShowSettingsPanel(!showSettingsPanel)}
-            className={`w-12 h-12 bg-white rounded-full shadow-md border border-stone-200 flex items-center justify-center text-stone-600 hover:text-purple-500 hover:scale-105 active:scale-95 transition-all touch-manipulation ${showSettingsPanel ? 'ring-2 ring-purple-500' : ''}`}
-            title="고급 설정"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-            </svg>
-          </button>
-
-          {/* 고급 설정 패널 (조건부 렌더링) */}
-          {showSettingsPanel && (
-            <div className="bg-white rounded-2xl shadow-xl border border-stone-200 p-4 flex flex-col gap-2 min-w-[200px]">
-              <div className="text-xs font-bold text-stone-500 mb-2 pb-2 border-b border-stone-200">고급 설정</div>
-              
-              {/* 데코레이션 */}
-              <div className="mb-2">
-                <div className="text-xs text-stone-500 mb-1">데코레이션</div>
-                <DecorationSelector onSelect={handleDecoration} />
-              </div>
-
-              {/* 내보내기 & 백업 */}
-              <div className="text-xs text-stone-500 mb-1 pt-2 border-t border-stone-200">내보내기 & 백업</div>
-              
-              {window.electron && (
-                <button 
-                  onClick={() => {
-                    setExportFormat('pdf');
-                    setShowExportOptions(true);
-                  }}
-                  className="w-full px-3 py-2 bg-stone-50 hover:bg-red-50 rounded-lg text-left text-sm text-stone-700 hover:text-red-600 transition-colors flex items-center gap-2"
-                  title="Export as PDF"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
-                  </svg>
-                  PDF 내보내기
-                </button>
-              )}
-
-              <button 
-                onClick={onOpenBackup}
-                className="w-full px-3 py-2 bg-stone-50 hover:bg-green-50 rounded-lg text-left text-sm text-stone-700 hover:text-green-600 transition-colors flex items-center gap-2"
-                title="Backup & Restore"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
-                  <path fillRule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
-                </svg>
-                백업 & 복원
-              </button>
-
-              {/* 위험한 작업 */}
-              <div className="text-xs text-stone-500 mb-1 pt-2 border-t border-stone-200">위험한 작업</div>
-              
-              <button 
-                onClick={handleClearLayout}
-                className="w-full px-3 py-2 bg-stone-50 hover:bg-red-50 rounded-lg text-left text-sm text-stone-700 hover:text-red-600 transition-colors flex items-center gap-2"
-                title="Clear Page"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                페이지 비우기
-              </button>
-            </div>
-          )}
-
-        </div>
-      )}
 
       {/* Mobile/Tablet: FAB 버튼 */}
       {isMobileOrTablet && (
@@ -759,6 +755,53 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
         <div className="fixed top-8 left-1/2 -translate-x-1/2 bg-stone-800 text-white text-xs font-bold px-4 py-2 rounded-full shadow-xl animate-bounce">
           {toastMsg}
         </div>
+      )}
+
+      {/* Slide Panels */}
+      {activePanel && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/20 z-[9998]"
+            onClick={() => setActivePanel(null)}
+          />
+          
+          {/* Panel */}
+          <div 
+            className={`fixed top-0 right-0 h-full w-[400px] z-[9999] shadow-2xl transition-transform duration-300 ease-in-out ${
+              activePanel ? 'translate-x-0' : 'translate-x-full'
+            }`}
+          >
+            {activePanel === 'settings' && (
+              <SettingsPanel
+                onClose={() => setActivePanel(null)}
+                onExportPDF={() => {
+                  setExportFormat('pdf');
+                  setShowExportOptions(true);
+                }}
+                onOpenBackup={() => setShowBackupManager(true)}
+                onManualSave={handleSaveLayout}
+              />
+            )}
+            {activePanel === 'ui' && (
+              <UIPanel
+                onClose={() => setActivePanel(null)}
+                onApplyTheme={(theme) => {
+                  setDiaryStyle(prev => ({
+                    ...prev,
+                    uiPalette: theme.palette,
+                  }));
+                  setToastMsg(`${theme.name} 테마 적용됨!`);
+                  setTimeout(() => setToastMsg(''), 1500);
+                }}
+                onShowAdvanced={() => {
+                  setShowPaletteEditor(true);
+                  setActivePanel(null);
+                }}
+              />
+            )}
+          </div>
+        </>
       )}
 
     </div>
