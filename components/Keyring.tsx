@@ -94,36 +94,92 @@ const Keyring: React.FC<KeyringProps> = ({ charm, onCharmChange }) => {
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
       title="드래그: 창 이동 | 더블클릭: 목록으로 돌아가기"
+      style={{
+        filter: 'drop-shadow(2px 4px 8px rgba(0, 0, 0, 0.15))',
+        transition: 'all 0.3s ease'
+      }}
     >
-       {/* 1. 미니멀 클립 */}
-       <div className="w-4 h-6 rounded-full relative" style={{ border: '2px solid var(--keyring-main)', background: 'transparent' }}>
+       {/* 1. 고급 클립 (금속 질감) */}
+       <div 
+         className="w-5 h-7 rounded-full relative transition-all duration-300 group-hover:scale-110"
+         style={{ 
+           border: '3px solid var(--keyring-main)',
+           background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.4) 0%, transparent 50%, rgba(0, 0, 0, 0.1) 100%)',
+           boxShadow: 'inset 0 2px 4px rgba(255, 255, 255, 0.5), inset 0 -2px 4px rgba(0, 0, 0, 0.2)',
+         }}
+       >
+         {/* 금속 하이라이트 */}
+         <div 
+           className="absolute top-1 left-1 w-2 h-2 rounded-full"
+           style={{ 
+             background: 'radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), transparent)',
+           }}
+         />
        </div>
 
-       {/* 2. 미니멀 체인 (4 links - 넓게) */}
-       <div className="-mt-0.5 w-2 h-4 rounded-full" style={{ border: '1.5px solid var(--keyring-main)' }}></div>
-       <div className="-mt-0.5 w-2 h-4 rounded-full" style={{ border: '1.5px solid var(--keyring-main)' }}></div>
-       <div className="-mt-0.5 w-2 h-4 rounded-full" style={{ border: '1.5px solid var(--keyring-main)' }}></div>
-       <div className="-mt-0.5 w-2 h-4 rounded-full" style={{ border: '1.5px solid var(--keyring-main)' }}></div>
+       {/* 2. 향상된 체인 (4 links - 금속 질감) */}
+       {[0, 1, 2, 3].map((i) => (
+         <div 
+           key={i}
+           className="-mt-0.5 w-2.5 h-4 rounded-full transition-all duration-300"
+           style={{ 
+             border: '2px solid var(--keyring-main)',
+             background: 'linear-gradient(90deg, rgba(255, 255, 255, 0.3) 0%, transparent 50%, rgba(0, 0, 0, 0.1) 100%)',
+             boxShadow: 'inset 0 1px 2px rgba(255, 255, 255, 0.4)',
+             animationDelay: `${i * 0.05}s`
+           }}
+         />
+       ))}
 
-       {/* 3. The Charm (클릭 가능) */}
+       {/* 3. The Charm (향상된 디자인) */}
        <div 
            data-charm
-           className="-mt-0.5 relative group-active:scale-95 transition-transform cursor-pointer"
+           className="-mt-0.5 relative group-active:scale-95 transition-all duration-300 cursor-pointer"
            onClick={handleCharmClick}
            onTouchEnd={(e) => {
                e.preventDefault();
                handleCharmClick();
            }}
+           style={{
+             filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2))'
+           }}
        >
            {isImage ? (
-               <div className="w-14 h-14 relative transform transition-transform group-hover:rotate-6">
-                   <img src={charm} alt="charm" className="w-full h-full object-contain rounded-lg" style={{ border: '2px solid var(--keyring-accent)' }} />
+               <div className="w-16 h-16 relative transform transition-all duration-300 group-hover:rotate-12 group-hover:scale-110">
+                   <div 
+                     className="absolute inset-0 rounded-lg"
+                     style={{
+                       background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%)',
+                       border: '3px solid var(--keyring-accent)',
+                       boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2), inset 0 2px 4px rgba(255, 255, 255, 0.5)'
+                     }}
+                   />
+                   <img 
+                     src={charm} 
+                     alt="charm" 
+                     className="w-full h-full object-contain rounded-lg relative z-10" 
+                   />
                </div>
            ) : (
-               <div className="text-4xl transform transition-transform group-hover:rotate-6">
+               <div 
+                 className="text-5xl transform transition-all duration-300 group-hover:rotate-12 group-hover:scale-110"
+                 style={{
+                   filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
+                   textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+                 }}
+               >
                    {charm}
                </div>
            )}
+           
+           {/* 반짝임 효과 */}
+           <div 
+             className="absolute -top-1 -right-1 w-3 h-3 rounded-full animate-ping pointer-events-none"
+             style={{
+               background: 'radial-gradient(circle, rgba(255, 255, 255, 0.8), transparent)',
+               animationDuration: '3s'
+             }}
+           />
        </div>
        
        {/* Hidden file input */}

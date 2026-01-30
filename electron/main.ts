@@ -12,7 +12,7 @@ import { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, screen } fr
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import fs from 'fs/promises';
-import fsSync from 'fs';
+import fsSync, { existsSync, mkdirSync } from 'fs';
 
 // ✅ 로그 파일 저장 설정
 const logPath = path.join(app.getPath('userData'), 'debug.log');
@@ -1643,6 +1643,44 @@ ipcMain.handle('diary:getCurrentId', async () => {
 // ═══════════════════════════════════════════════════════
 // 정적 HTML 내보내기
 // ═══════════════════════════════════════════════════════
+
+// --- 폰트 업로드 ---
+ipcMain.handle('font:upload', async () => {
+  if (!appWin) return { success: false, error: 'No window' };
+  
+  try {
+    const { filePaths, canceled } = await dialog.showOpenDialog(appWin, {
+      filters: [{ name: 'Fonts', extensions: ['ttf', 'otf', 'woff', 'woff2'] }],
+      properties: ['openFile']
+    });
+    
+    if (canceled || !filePaths[0]) {
+      return { success: false, canceled: true };
+    }
+    
+    const fontPath = filePaths[0];
+    const fontName = path.basename(fontPath);
+    const fontDir = path.join(app.getPath('userData'), 'fonts');
+    
+    // 폰트 디렉토리 생성
+    if (!existsSync(fontDir)) {
+      mkdirSync(fontDir, { recursive: true });
+    }
+    
+    // 폰트 파일 복사
+    const destPath = path.join(fontDir, fontName);
+    await fs.copyFile(fontPath, destPath);
+    
+    return { 
+      success: true, 
+      fontPath: destPath,
+      fontName: fontName.replace(/\.[^/.]+$/, '') // 확장자 제거
+    };
+  } catch (error) {
+    console.error('Font upload failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
 
 ipcMain.handle('diary:exportToStaticHTML', async (_event, diaryId: string, options: {
   includeMonthlyCover?: boolean;

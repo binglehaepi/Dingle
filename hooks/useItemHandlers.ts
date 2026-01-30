@@ -210,28 +210,8 @@ export function useItemHandlers({ state, isMobile, pageOffset, formatDateKey, fo
     });
   }, [setItems, setToastMsg]);
 
-  // --- 배경 이미지 업로드 ---
-  const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      try {
-        const result = await compressImage(e.target.files[0], 1200, 0.7);
-        const newStyle = { ...diaryStyle, backgroundImage: result };
-        setDiaryStyle(newStyle);
-        
-        try {
-          localStorage.setItem(STYLE_PREF_KEY, JSON.stringify(newStyle));
-          setToastMsg('Desk Updated');
-        } catch (err: any) {
-          if (err.name === 'QuotaExceededError') {
-            alert("Storage full! Cannot save background image.");
-          }
-        }
-      } catch (error) {
-        console.error("Image processing failed", error);
-        setToastMsg('Failed');
-      }
-    }
-  };
+  // --- 배경 이미지 업로드 (MVP에서 제거됨) ---
+  // const handleBackgroundUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { ... };
 
   // --- URL 스크랩 ---
   const handleScrap = useCallback(async (url: string) => {
@@ -541,7 +521,7 @@ export function useItemHandlers({ state, isMobile, pageOffset, formatDateKey, fo
   return {
     handleDeleteItem,
     handleSetMainItem,
-    handleBackgroundUpload,
+    // handleBackgroundUpload, // Removed for MVP
     handleScrap,
     handleScrapToDate,
     handleCreateManual,

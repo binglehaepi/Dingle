@@ -88,7 +88,7 @@ export function useAppState() {
   
   // 📌 Refs
   const bookRef = useRef<HTMLDivElement>(null);
-  const backgroundInputRef = useRef<HTMLInputElement>(null);
+  // const backgroundInputRef = useRef<HTMLInputElement>(null); // Removed for MVP
   const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   return {
@@ -136,7 +136,7 @@ export function useAppState() {
     
     // Refs
     bookRef,
-    backgroundInputRef,
+    // backgroundInputRef, // Removed for MVP
     autoSaveTimerRef,
   };
 }

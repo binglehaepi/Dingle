@@ -377,33 +377,50 @@ const PaletteEditorModal: React.FC<PaletteEditorModalProps> = ({
         style={{ backgroundColor: surfaceBg, borderColor: border, color: text }}
       >
         {/* Header */}
-        <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: border }}>
-          <h3 className="text-lg font-medium" style={{ color: text }}>
-            🎨 UI 색상 팔레트 편집 (1:1 매핑)
-          </h3>
+        <div className="p-4 border-b flex flex-col gap-3" style={{ borderColor: border }}>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-medium" style={{ color: text }}>
+              🎨 UI 색상 팔레트 편집
+            </h3>
 
-          <div className="flex gap-2">
-            <button
-              onClick={handleReset}
-              className="px-3 py-1 text-sm border rounded"
-              style={{ backgroundColor: inputBg, borderColor: border, color: text }}
-            >
-              기본값 복원
-            </button>
-            <button
-              onClick={handleExport}
-              className="px-3 py-1 text-sm border rounded"
-              style={{ backgroundColor: inputBg, borderColor: border, color: text }}
-            >
-              내보내기
-            </button>
-            <button
-              onClick={handleImport}
-              className="px-3 py-1 text-sm border rounded"
-              style={{ backgroundColor: inputBg, borderColor: border, color: text }}
-            >
-              불러오기
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleReset}
+                className="px-3 py-1 text-sm border rounded hover:opacity-80 transition"
+                style={{ backgroundColor: inputBg, borderColor: border, color: text }}
+              >
+                기본값 복원
+              </button>
+              <button
+                onClick={handleExport}
+                className="px-3 py-1 text-sm border rounded hover:opacity-80 transition"
+                style={{ backgroundColor: inputBg, borderColor: border, color: text }}
+              >
+                내보내기
+              </button>
+              <button
+                onClick={handleImport}
+                className="px-3 py-1 text-sm border rounded hover:opacity-80 transition"
+                style={{ backgroundColor: inputBg, borderColor: border, color: text }}
+              >
+                불러오기
+              </button>
+            </div>
+          </div>
+
+          {/* 1:1 매핑 설명 및 프리셋 */}
+          <div className="bg-gradient-to-r from-pink-50 to-purple-50 border border-pink-200 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-base font-bold text-pink-600">✨ 1:1 매핑 기능</span>
+                  <span className="text-xs bg-pink-100 text-pink-700 px-2 py-0.5 rounded-full font-semibold">핵심 기능</span>
+                </div>
+                <p className="text-xs text-pink-700">
+                  색상 하나를 변경하면 관련된 모든 UI 요소가 자동으로 업데이트됩니다. 실시간 미리보기로 즉시 확인하세요!
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

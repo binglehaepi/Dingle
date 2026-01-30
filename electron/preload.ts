@@ -47,6 +47,9 @@ contextBridge.exposeInMainWorld('electron', {
   // --- 내보내기 ---
   // exportPNG: () => ipcRenderer.invoke('export:png'), // Removed for MVP
   exportPDF: () => ipcRenderer.invoke('export:pdf'),
+  
+  // --- 폰트 ---
+  fontUpload: () => ipcRenderer.invoke('font:upload'),
 
   // --- OhaAsa Horoscope ---
   ohaasaHoroscope: (params: { date: string; sign: string }) => ipcRenderer.invoke('ohaasa:horoscope', params),
@@ -202,6 +205,15 @@ export interface ElectronAPI {
   exportPDF: () => Promise<{
     success: boolean;
     filePath?: string;
+    canceled?: boolean;
+    error?: string;
+  }>;
+  
+  // 폰트
+  fontUpload: () => Promise<{
+    success: boolean;
+    fontPath?: string;
+    fontName?: string;
     canceled?: boolean;
     error?: string;
   }>;

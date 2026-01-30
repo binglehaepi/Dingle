@@ -42,7 +42,7 @@ interface DesktopAppProps {
   // Refs & Computed
   viewportRef: React.RefObject<HTMLDivElement>;
   bookRef: React.RefObject<HTMLDivElement>;
-  backgroundInputRef: React.RefObject<HTMLInputElement>;
+  // backgroundInputRef: React.RefObject<HTMLInputElement>; // Removed for MVP
   scale: number;
   designWidth: number;
   
@@ -63,7 +63,7 @@ interface DesktopAppProps {
   handleWeekSelect: (date: Date) => void;
   handleUpdateText: (key: string, field: string, value: string) => void;
   handleDecoration: any;
-  handleBackgroundUpload: any;
+  // handleBackgroundUpload: any; // Removed for MVP
   handleSaveLayout: () => void;
   handleClearLayout: () => void;
   updatePosition: any;
@@ -91,6 +91,8 @@ interface DesktopAppProps {
 const DesktopApp: React.FC<DesktopAppProps> = (props) => {
   // 툴바 숨김 상태 (캡처 시 사용)
   const [hideToolbar, setHideToolbar] = useState(false);
+  // ✅ 고급 설정 패널 (MVP UI 개선)
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   // ✅ 선택된 아이템 (링크/임베드 꾸미기 MVP)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [embedPreview, setEmbedPreview] = useState<{ url: string; title?: string } | null>(null);
@@ -139,7 +141,7 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
     setShowCreationModal,
     viewportRef,
     bookRef,
-    backgroundInputRef,
+    // backgroundInputRef, // Removed for MVP
     scale,
     designWidth,
     deviceMode,
@@ -154,7 +156,7 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
     handleWeekSelect,
     handleUpdateText,
     handleDecoration,
-    handleBackgroundUpload,
+    // handleBackgroundUpload, // Removed for MVP
     handleSaveLayout,
     handleClearLayout,
     updatePosition,
@@ -604,113 +606,88 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
 
       {/* UI Overlays */}
 
-      {/* Desktop: 우측 툴바 */}
+      {/* Desktop: 우측 툴바 (간소화) */}
       {deviceMode === 'desktop' && !hideToolbar && (
         <div className="fixed top-8 right-8 z-[100] flex flex-col gap-3">
-          <DecorationSelector onSelect={handleDecoration} />
-
-          {/* Background Upload */}
-          <button 
-            onClick={() => backgroundInputRef.current?.click()}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              backgroundInputRef.current?.click();
-            }}
-            className="w-12 h-12 bg-white rounded-full border border-stone-200 flex items-center justify-center text-stone-600 hover:text-green-600 hover:scale-105 active:scale-95 transition-all group relative touch-manipulation"
-            title="Change Desk Background"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-            </svg>
-            <input type="file" ref={backgroundInputRef} className="hidden" accept="image/*" onChange={handleBackgroundUpload} />
-          </button>
-
-          {/* Background Remove (이미지가 있을 때만 표시) */}
-          {diaryStyle.backgroundImage && (
-            <button 
-              onClick={() => {
-                setDiaryStyle(prev => ({ ...prev, backgroundImage: '' }));
-                setToastMsg('배경 이미지 제거됨');
-                setTimeout(() => setToastMsg(''), 1500);
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setDiaryStyle(prev => ({ ...prev, backgroundImage: '' }));
-                setToastMsg('배경 이미지 제거됨');
-                setTimeout(() => setToastMsg(''), 1500);
-              }}
-              className="w-12 h-12 bg-white rounded-full border border-stone-200 flex items-center justify-center text-stone-600 hover:text-red-500 hover:scale-105 active:scale-95 transition-all touch-manipulation"
-              title="Remove Desk Background Image"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </button>
-          )}
-
-          {/* Save */}
-          <button 
-            onClick={handleSaveLayout}
-            className="w-12 h-12 bg-white rounded-full shadow-md border border-stone-200 flex items-center justify-center text-stone-600 hover:text-blue-500 hover:scale-105 active:scale-95 transition-all touch-manipulation"
-            title="Save"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z" />
-            </svg>
-          </button>
-
-          {/* PNG export removed - not needed for MVP */}
-
-          {/* Export PDF (Electron only) */}
-          {window.electron && (
-            <button 
-              onClick={() => {
-                setExportFormat('pdf');
-                setShowExportOptions(true);
-              }}
-              className="w-12 h-12 bg-white rounded-full shadow-md border border-stone-200 flex items-center justify-center text-stone-600 hover:text-red-500 hover:scale-105 active:scale-95 transition-all touch-manipulation"
-              title="Export as PDF (with options)"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
-              </svg>
-            </button>
-          )}
-
-          {/* Backup */}
-          <button 
-            onClick={onOpenBackup}
-            className="w-12 h-12 bg-white rounded-full shadow-md border border-stone-200 flex items-center justify-center text-stone-600 hover:text-green-500 hover:scale-105 active:scale-95 transition-all touch-manipulation"
-            title="Backup & Restore"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
-              <path fillRule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
-            </svg>
-          </button>
-          
-          {/* Clear */}
-          <button 
-            onClick={handleClearLayout}
-            className="w-12 h-12 bg-white rounded-full shadow-md border border-stone-200 flex items-center justify-center text-stone-600 hover:text-red-500 hover:scale-105 active:scale-95 transition-all touch-manipulation"
-            title="Clear Page"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
-          </button>
-
-          {/* Palette Editor */}
+          {/* 설정 버튼 (주요 버튼) */}
           <button 
             onClick={() => setShowPaletteEditor(true)}
             className="w-12 h-12 bg-white rounded-full shadow-md border border-stone-200 flex items-center justify-center text-stone-600 hover:text-pink-500 hover:scale-105 active:scale-95 transition-all touch-manipulation relative"
-            title="색상 팔레트 편집"
+            title="색상 팔레트 편집 (1:1 매핑)"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" clipRule="evenodd" />
             </svg>
           </button>
+
+          {/* 고급 설정 버튼 (토글) */}
+          <button 
+            onClick={() => setShowSettingsPanel(!showSettingsPanel)}
+            className={`w-12 h-12 bg-white rounded-full shadow-md border border-stone-200 flex items-center justify-center text-stone-600 hover:text-purple-500 hover:scale-105 active:scale-95 transition-all touch-manipulation ${showSettingsPanel ? 'ring-2 ring-purple-500' : ''}`}
+            title="고급 설정"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+            </svg>
+          </button>
+
+          {/* 고급 설정 패널 (조건부 렌더링) */}
+          {showSettingsPanel && (
+            <div className="bg-white rounded-2xl shadow-xl border border-stone-200 p-4 flex flex-col gap-2 min-w-[200px]">
+              <div className="text-xs font-bold text-stone-500 mb-2 pb-2 border-b border-stone-200">고급 설정</div>
+              
+              {/* 데코레이션 */}
+              <div className="mb-2">
+                <div className="text-xs text-stone-500 mb-1">데코레이션</div>
+                <DecorationSelector onSelect={handleDecoration} />
+              </div>
+
+              {/* 내보내기 & 백업 */}
+              <div className="text-xs text-stone-500 mb-1 pt-2 border-t border-stone-200">내보내기 & 백업</div>
+              
+              {window.electron && (
+                <button 
+                  onClick={() => {
+                    setExportFormat('pdf');
+                    setShowExportOptions(true);
+                  }}
+                  className="w-full px-3 py-2 bg-stone-50 hover:bg-red-50 rounded-lg text-left text-sm text-stone-700 hover:text-red-600 transition-colors flex items-center gap-2"
+                  title="Export as PDF"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
+                  </svg>
+                  PDF 내보내기
+                </button>
+              )}
+
+              <button 
+                onClick={onOpenBackup}
+                className="w-full px-3 py-2 bg-stone-50 hover:bg-green-50 rounded-lg text-left text-sm text-stone-700 hover:text-green-600 transition-colors flex items-center gap-2"
+                title="Backup & Restore"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
+                  <path fillRule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+                백업 & 복원
+              </button>
+
+              {/* 위험한 작업 */}
+              <div className="text-xs text-stone-500 mb-1 pt-2 border-t border-stone-200">위험한 작업</div>
+              
+              <button 
+                onClick={handleClearLayout}
+                className="w-full px-3 py-2 bg-stone-50 hover:bg-red-50 rounded-lg text-left text-sm text-stone-700 hover:text-red-600 transition-colors flex items-center gap-2"
+                title="Clear Page"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                페이지 비우기
+              </button>
+            </div>
+          )}
 
         </div>
       )}
@@ -720,11 +697,11 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
         <MobileToolbar 
           onSave={handleSaveLayout}
           onClear={handleClearLayout}
-          onBackgroundUpload={handleBackgroundUpload}
+          onBackgroundUpload={() => {}} // Disabled for MVP
           onDecoration={handleDecoration}
           onMonthSelect={handleMonthSelect}
           onScrapPageOpen={() => changeLayout('scrap_page')}
-          backgroundInputRef={backgroundInputRef}
+          backgroundInputRef={undefined} // Disabled for MVP
           currentMonth={currentDate.getMonth()}
           isScrapPage={currentLayout === 'scrap_page'}
           activeSide={'left' as PageSide}

@@ -26,7 +26,7 @@ import TodoWidget from './items/TodoWidget';
 import OhaAsaWidget from './items/OhaAsaWidget';
 import AladinBookCard from './items/AladinBookCard';
 import GoogleMapCard from './items/GoogleMapCard';
-import DecoratedCardWrapper from './decorations/DecoratedCardWrapper';
+// DecoratedCardWrapper removed - decoration feature disabled for MVP
 
 interface ItemRendererProps {
   item: ScrapItem;
@@ -39,32 +39,7 @@ interface ItemRendererProps {
  * App.tsx의 renderItemContent 로직을 분리
  */
 export const ItemRenderer: React.FC<ItemRendererProps> = ({ item, onUpdateMetadata }) => {
-  const wrapWithCardDecorations = (node: React.ReactNode) => {
-    const deco: any = item?.metadata?.decoration;
-    const presetId: string = (deco?.presetId || 'none') as string;
-
-    // legacy -> new preset mapping (최소회귀)
-    const effectivePresetId: string = (() => {
-      if (presetId === 'lace' || presetId === 'scallop_lace' || presetId === 'scallop_lace_clean' || presetId === 'wavy_frame' || presetId === 'heart_lace') return 'frame_scallop_lace';
-      if (presetId === 'pearls' || presetId === 'pearl' || presetId === 'pearl_thin') return 'frame_pearl_border';
-      if (presetId === 'ribbon' || presetId === 'ribbon_top' || presetId === 'ribbon_top_thin') return 'frame_bow_top';
-      if (presetId === 'ribbon_corners' || presetId === 'ribbon_corners_thin') return 'frame_bow_corners';
-      if (presetId === 'polaroid' || presetId === 'polaroid_thin') return 'frame_simple_round';
-      // 요구사항: stickerCorners는 없으면 none
-      if (presetId === 'stickerCorners' || presetId === 'sticker_corners' || presetId === 'sticker_corners_thin') return 'none';
-      return presetId;
-    })();
-
-    // decoration이 없거나(또는 effectivePresetId가 none이면) 기존 DOM 최소화
-    if (!deco || effectivePresetId === 'none') return node;
-
-    const shadow = (deco?.shadow as string | undefined) || undefined;
-    return (
-      <DecoratedCardWrapper presetId={effectivePresetId} shadow={shadow} debugItemId={item.id}>
-        {node}
-      </DecoratedCardWrapper>
-    );
-  };
+  // Decoration feature removed for MVP - cards render without decorations
 
   // 🟢 1차 릴리즈: Platform 기반 렌더링
   const platform = item.metadata.platform;
@@ -72,13 +47,13 @@ export const ItemRenderer: React.FC<ItemRendererProps> = ({ item, onUpdateMetada
   // 알라딘 도서
   if (platform === 'aladin') {
     console.log(`📚 알라딘 도서 카드 렌더링`);
-    return wrapWithCardDecorations(<AladinBookCard data={item.metadata} />);
+    return <AladinBookCard data={item.metadata} />;
   }
   
   // Google Maps
   if (platform === 'googlemap') {
     console.log(`🗺️ Google Maps 카드 렌더링`);
-    return wrapWithCardDecorations(<GoogleMapCard data={item.metadata} />);
+    return <GoogleMapCard data={item.metadata} />;
   }
 
   // Editable or General
@@ -107,13 +82,13 @@ export const ItemRenderer: React.FC<ItemRendererProps> = ({ item, onUpdateMetada
       return <TapeObject data={item.metadata} />;
     
     case ScrapType.TWITTER:
-      return wrapWithCardDecorations(<TwitterEmbedCard data={item.metadata} />);
+      return <TwitterEmbedCard data={item.metadata} />;
     
     case ScrapType.INSTAGRAM:
-      return wrapWithCardDecorations(<InstagramEmbedCard data={item.metadata} />);
+      return <InstagramEmbedCard data={item.metadata} />;
     
     case ScrapType.PINTEREST:
-      return wrapWithCardDecorations(<PinterestCard data={item.metadata} />);
+      return <PinterestCard data={item.metadata} />;
     
     case ScrapType.BOOK:
       return <BookObject data={item.metadata} />;
@@ -121,16 +96,16 @@ export const ItemRenderer: React.FC<ItemRendererProps> = ({ item, onUpdateMetada
     case ScrapType.YOUTUBE:
       return item.metadata.youtubeConfig?.mode === 'cd' 
         ? <MusicCdObject data={item.metadata} /> 
-        : wrapWithCardDecorations(<VideoPlayerObject data={item.metadata} />);
+        : <VideoPlayerObject data={item.metadata} />;
     
     case ScrapType.SPOTIFY:
-      return wrapWithCardDecorations(<MediaCard data={item.metadata} />);
+      return <MediaCard data={item.metadata} />;
     
     case ScrapType.TIKTOK:
-      return wrapWithCardDecorations(<MediaCard data={item.metadata} />);
+      return <MediaCard data={item.metadata} />;
     
     case ScrapType.VIMEO:
-      return wrapWithCardDecorations(<MediaCard data={item.metadata} />);
+      return <MediaCard data={item.metadata} />;
     
     case ScrapType.FASHION:
       return <FashionTag data={item.metadata} />;

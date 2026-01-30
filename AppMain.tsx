@@ -167,7 +167,7 @@ const AppMain: React.FC = () => {
     // Refs & Computed
     viewportRef,
     bookRef,
-    backgroundInputRef: state.backgroundInputRef,
+    // backgroundInputRef: state.backgroundInputRef, // Removed for MVP
     scale,
     designWidth,
     deviceMode,
@@ -186,7 +186,7 @@ const AppMain: React.FC = () => {
     handleWeekSelect: layoutHandlers.handleWeekSelect,
     handleUpdateText: layoutHandlers.handleUpdateText,
     handleDecoration: itemHandlers.handleDecoration,
-    handleBackgroundUpload: itemHandlers.handleBackgroundUpload,
+    // handleBackgroundUpload: itemHandlers.handleBackgroundUpload, // Removed for MVP
     handleSaveLayout: isElectron ? fileSync.saveManually : storageSync.handleSaveLayout,
     handleClearLayout: layoutHandlers.handleClearLayout,
     updatePosition: itemHandlers.updatePosition,
