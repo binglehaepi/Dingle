@@ -3,6 +3,7 @@ import { STORAGE_KEY, TEXT_DATA_KEY, STYLE_PREF_KEY, LINK_DOCK_KEY } from './con
 import { UpdateNotification } from './components/UpdateNotification';
 import AppMain from './AppMain';
 import DiaryManager from './components/DiaryManager';
+import { MusicProvider } from './music/MusicStore';
 
 type WindowMode = 'app' | 'overlay';
 type DetectedMode = WindowMode | 'unknown';
@@ -76,15 +77,17 @@ const OverlayModeView: React.FC = () => {
   }, []);
 
   return (
-    <div className={`overlayRoot ${locked ? 'overlayLocked' : 'overlayUnlocked'}`}>
-      <div className="overlayViewport">
-        {/* React가 실제로 커밋되었음을 보장하는 마커(디버깅/검증용) */}
-        <div id="overlay-ui-ready" style={{ display: 'none' }} />
-        <Suspense fallback={null}>
-          <AppMain />
-        </Suspense>
+    <MusicProvider>
+      <div className={`overlayRoot ${locked ? 'overlayLocked' : 'overlayUnlocked'}`}>
+        <div className="overlayViewport">
+          {/* React가 실제로 커밋되었음을 보장하는 마커(디버깅/검증용) */}
+          <div id="overlay-ui-ready" style={{ display: 'none' }} />
+          <Suspense fallback={null}>
+            <AppMain />
+          </Suspense>
+        </div>
       </div>
-    </div>
+    </MusicProvider>
   );
 };
 
