@@ -12,6 +12,39 @@ import { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, screen } fr
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import fs from 'fs/promises';
+import fsSync from 'fs';
+
+// ✅ 로그 파일 저장 설정
+const logPath = path.join(app.getPath('userData'), 'debug.log');
+let logStream: fsSync.WriteStream | null = null;
+
+function initLogStream() {
+  try {
+    logStream = fsSync.createWriteStream(logPath, { flags: 'a' });
+    console.log('[log] Log file initialized:', logPath);
+  } catch (err) {
+    console.error('[log] Failed to initialize log file:', err);
+  }
+}
+
+function log(...args: any[]) {
+  const timestamp = new Date().toISOString();
+  const message = `[${timestamp}] ${args.map(arg => 
+    typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+  ).join(' ')}\n`;
+  
+  // 콘솔에도 출력
+  console.log(...args);
+  
+  // 파일에도 저장
+  if (logStream && !logStream.destroyed) {
+    try {
+      logStream.write(message);
+    } catch (err) {
+      console.error('[log] Failed to write to log file:', err);
+    }
+  }
+}
 
 type WindowMode = 'app' | 'overlay';
 type DisplayMode = 'background' | 'mini';
@@ -477,8 +510,8 @@ async function createWindow(mode: WindowMode, opts?: { overlayGen?: number }) {
   }
 
   if (mode === 'overlay') {
-    // ✅ 유령창 방지 핵심: 절대 보이지 않게 시작
-    try { win.setOpacity(0); } catch { /* ignore */ }
+    // ✅ 긴급 수정: opacity=0 제거하여 창이 즉시 보이도록 함
+    // try { win.setOpacity(0); } catch { /* ignore */ }
     try { win.setBackgroundColor('#00000000'); } catch { /* ignore */ }
     // 기본 잠금 상태는 OFF(이동/조작 가능). click-through는 locked=true일 때만 적용.
     try { win.setIgnoreMouseEvents(false); } catch { /* ignore */ }
@@ -919,6 +952,14 @@ ipcMain.handle('update:install', () => {
 });
 
 if (gotLock) app.whenReady().then(async () => {
+  // ✅ 로그 파일 초기화
+  initLogStream();
+  log('[app] Application starting...', { 
+    version: app.getVersion(),
+    userData: app.getPath('userData'),
+    isPackaged: app.isPackaged 
+  });
+  
   await ensureDiaryDir();
   
   // ✅ 기존 데이터 마이그레이션
@@ -973,6 +1014,30 @@ if (gotLock) app.whenReady().then(async () => {
     console.log('[shortcut] register failed', e);
   }
 
+  // 🔧 디버그 단축키: 모든 창의 개발자 도구 열기 및 표시
+  try {
+    const ok = globalShortcut.register('Control+Shift+F12', () => {
+      console.log('[debug] Ctrl+Shift+F12 -> force open DevTools for all windows');
+      
+      const allWindows = BrowserWindow.getAllWindows();
+      for (const win of allWindows) {
+        try {
+          if (!win.isDestroyed()) {
+            win.webContents.openDevTools({ mode: 'detach' });
+            win.setOpacity(1); // 혹시 숨겨져 있다면 표시
+            win.show();
+            console.log('[debug] Opened DevTools for window:', win.id);
+          }
+        } catch (err) {
+          console.error('[debug] Failed to open DevTools for window:', win.id, err);
+        }
+      }
+    });
+    console.log('[shortcut] register Ctrl+Shift+F12 =', ok);
+  } catch (e) {
+    console.log('[shortcut] register Ctrl+Shift+F12 failed', e);
+  }
+
   // macOS: 독에서 아이콘 클릭 시 윈도우 재생성
   app.on('activate', () => {
     if (!appWin) createWindow('app').then((w) => (appWin = w));
@@ -989,6 +1054,16 @@ app.on('will-quit', () => {
     globalShortcut.unregisterAll();
   } catch {
     // ignore
+  }
+  
+  // ✅ 로그 파일 스트림 닫기
+  if (logStream && !logStream.destroyed) {
+    try {
+      log('[app] Application quitting...');
+      logStream.end();
+    } catch (err) {
+      console.error('[log] Failed to close log stream:', err);
+    }
   }
 });
 
@@ -1204,14 +1279,14 @@ ipcMain.on('overlay:rendererAlive', (e) => {
   // 1단계: alive 수신은 “표시”와 분리. 여기서는 상태/로그만.
   overlayRendererAliveSeen = true;
   overlayAwaitingRendererAlive = false;
-  // uiReady를 5초 내 못 받으면 계속 opacity=0 유지(보이지 않음). 필요 시 후속 destroy는 선택.
+  // ✅ 긴급 수정: opacity 제거로 인해 타임아웃 로직 불필요
   clearOverlayUiReadyTimer();
   overlayUiReadyTimer = setTimeout(() => {
     if (localGen !== overlayGen) return;
     if (!isCurrentOverlayWin(win, localGen)) return;
     if (win.isDestroyed()) return;
     if (overlayUiReady) return;
-    console.log('[overlay] uiReady timeout (keep hidden)', { pid: process.pid, overlayGen: localGen });
+    console.log('[overlay] uiReady timeout - window already visible', { pid: process.pid, overlayGen: localGen });
   }, 5000);
 });
 
@@ -1228,8 +1303,9 @@ ipcMain.on('overlay:uiReady', (e) => {
   overlayUiReady = true;
   clearOverlayUiReadyTimer();
 
-  // ✅ 이제서야 보여준다 (빈/흰 순간 원천 차단)
-  try { win.setOpacity(1); } catch { /* ignore */ }
+  // ✅ 긴급 수정: opacity 이미 1이므로 불필요
+  // try { win.setOpacity(1); } catch { /* ignore */ }
+  console.log('[overlay] uiReady confirmed - window already visible');
 });
 
 // --- 다이얼로그 ---

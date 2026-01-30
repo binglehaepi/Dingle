@@ -146,6 +146,7 @@ const DiaryPreview: React.FC<DiaryPreviewProps> = ({ diaryId, onOpen }) => {
 
   // 로딩 중
   if (loading) {
+    console.log('[DiaryPreview] Loading state visible');
     return (
       <div style={{
         flex: 1,
@@ -166,6 +167,87 @@ const DiaryPreview: React.FC<DiaryPreviewProps> = ({ diaryId, onOpen }) => {
       </div>
     );
   }
+
+  // ✅ 데이터 로드 실패 또는 비어있음
+  if (!previewData) {
+    console.log('[DiaryPreview] No preview data available');
+    return (
+      <div style={{
+        flex: 1,
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fff3cd',
+        fontFamily: "'Nanum Gothic', sans-serif",
+        padding: '40px',
+      }}>
+        <div style={{
+          textAlign: 'center',
+          maxWidth: '600px',
+          padding: '40px',
+          backgroundColor: 'white',
+          border: '3px dashed #ff6b6b',
+          borderRadius: '16px',
+        }}>
+          <div style={{ fontSize: '64px', marginBottom: '24px' }}>⚠️</div>
+          <h2 style={{ 
+            fontSize: '24px', 
+            margin: '0 0 16px 0',
+            fontFamily: "'Nanum Myeongjo', serif",
+            color: '#d63031',
+          }}>
+            프리뷰 로드 실패
+          </h2>
+          <p style={{ 
+            fontSize: '16px', 
+            margin: '0 0 20px 0',
+            color: '#636e72',
+            lineHeight: '1.6',
+          }}>
+            다이어리 데이터를 불러올 수 없습니다.<br />
+            파일이 손상되었거나 아직 저장되지 않았을 수 있습니다.
+          </p>
+          <pre style={{
+            backgroundColor: '#f8f9fa',
+            padding: '16px',
+            borderRadius: '8px',
+            textAlign: 'left',
+            fontSize: '12px',
+            overflow: 'auto',
+            maxHeight: '200px',
+          }}>
+            {JSON.stringify({ 
+              diaryId, 
+              hasElectron: !!window.electron,
+              timestamp: new Date().toISOString(),
+            }, null, 2)}
+          </pre>
+          <button 
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: '20px',
+              padding: '12px 24px',
+              backgroundColor: '#0984e3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
+            }}
+          >
+            🔄 새로고침
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  console.log('[DiaryPreview] Rendering preview with data:', {
+    itemCount: previewData.items?.length,
+    hasStyle: !!previewData.stylePref,
+  });
 
   // 프리뷰 표시
   return (
