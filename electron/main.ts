@@ -664,9 +664,21 @@ function getWindowOptions(mode: WindowMode): Electron.BrowserWindowConstructorOp
   if (mode === 'overlay') {
     // ✅ 화면 크기에 맞는 최적 크기 계산
     const { width, height } = getOptimalOverlaySize();
+    
+    // ✅ 화면 중앙에 배치 (작업표시줄 고려)
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+    const { x: workAreaX, y: workAreaY } = primaryDisplay.workArea;
+    
+    // 중앙 위치 계산
+    const x = workAreaX + Math.floor((screenWidth - width) / 2);
+    const y = workAreaY + Math.floor((screenHeight - height) / 2);
+    
     return {
       width,
       height,
+      x,  // ✅ 초기 x 위치 설정
+      y,  // ✅ 초기 y 위치 설정
       minWidth: 820,    // 작은 노트북 최소 크기
       minHeight: 490,   // 작은 노트북 최소 크기
       resizable: false,
@@ -687,9 +699,21 @@ function getWindowOptions(mode: WindowMode): Electron.BrowserWindowConstructorOp
   }
 
   // app 모드: 서재 스타일 (컴팩트 + frameless)
+  // ✅ 화면 중앙에 배치
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const { x: workAreaX, y: workAreaY } = primaryDisplay.workArea;
+  
+  const appWidth = 1800;
+  const appHeight = 800;
+  const appX = workAreaX + Math.floor((screenWidth - appWidth) / 2);
+  const appY = workAreaY + Math.floor((screenHeight - appHeight) / 2);
+  
   return {
-    width: 1800,
-    height: 800,
+    width: appWidth,
+    height: appHeight,
+    x: appX,  // ✅ 초기 x 위치 설정
+    y: appY,  // ✅ 초기 y 위치 설정
     minWidth: 1700,
     minHeight: 700,
     resizable: true,
