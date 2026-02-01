@@ -513,6 +513,12 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
             ref={(el) => {
               // Fixed panel ref
             }}
+            onMouseEnter={() => {
+              // 패널 영역에 마우스 진입 시 클릭 활성화
+              if (window.electron?.send) {
+                window.electron.send('set-ignore-mouse-events', false);
+              }
+            }}
           >
                 {activePanel === 'settings' && (
                   <SettingsPanel
@@ -1029,6 +1035,22 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                 animation: 'star-glow 2.5s ease-in-out infinite',
               }}
               onMouseEnter={(e) => {
+                // 드래그 핸들 영역에 마우스 진입 시 클릭 활성화
+                if (window.electron?.send) {
+                  window.electron.send('set-ignore-mouse-events', false);
+                }
+                const el = e.currentTarget;
+                el.style.transform = 'scale(1.25) rotate(36deg)';
+                el.style.animation = 'none';
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget;
+                if (!el.classList.contains('dragging')) {
+                  el.style.transform = 'scale(1) rotate(0deg)';
+                  el.style.animation = 'star-glow 2.5s ease-in-out infinite';
+                }
+              }}
+              onMouseEnter={(e) => {
                 const el = e.currentTarget;
                 el.style.transform = 'scale(1.25) rotate(36deg)';
                 el.style.animation = 'none';
@@ -1109,6 +1131,22 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                 zIndex: 1000,
                 userSelect: 'none',
                 animation: 'star-glow 2.5s ease-in-out infinite',
+              }}
+              onMouseEnter={(e) => {
+                // 드래그 핸들 영역에 마우스 진입 시 클릭 활성화
+                if (window.electron?.send) {
+                  window.electron.send('set-ignore-mouse-events', false);
+                }
+                const el = e.currentTarget;
+                el.style.transform = 'scale(1.25) rotate(36deg)';
+                el.style.animation = 'none';
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget;
+                if (!el.classList.contains('dragging')) {
+                  el.style.transform = 'scale(1) rotate(0deg)';
+                  el.style.animation = 'star-glow 2.5s ease-in-out infinite';
+                }
               }}
               onMouseEnter={(e) => {
                 const el = e.currentTarget;
