@@ -3,11 +3,13 @@ import { ScrapMetadata } from '../../types';
 
 interface TextNoteObjectProps {
   data: ScrapMetadata;
+  onDelete?: () => void;
+  onUpdate?: (newData: Partial<ScrapMetadata>) => void;
 }
 
-const TextNoteObject: React.FC<TextNoteObjectProps> = ({ data }) => {
-  const [text, setText] = useState(data.noteConfig?.text || data.title || "Write something...");
-  const [isEditing, setIsEditing] = useState(false);
+const TextNoteObject: React.FC<TextNoteObjectProps> = ({ data, onDelete, onUpdate }) => {
+  const [text, setText] = useState(data.noteConfig?.text || "");
+  const [isEditing, setIsEditing] = useState(data.noteConfig?.isEditing || false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -18,47 +20,95 @@ const TextNoteObject: React.FC<TextNoteObjectProps> = ({ data }) => {
     }
   }, [isEditing]);
 
+  const handleTextChange = (newText: string) => {
+    setText(newText);
+    // 실시간으로 메타데이터 업데이트
+    if (onUpdate) {
+      onUpdate({
+        noteConfig: {
+          ...data.noteConfig,
+          text: newText,
+          fontSize: data.noteConfig?.fontSize || '14px'
+        }
+      });
+    }
+  };
+
   const handleBlur = () => {
     setIsEditing(false);
-    // In a real app, we would bubble this up to save to the main state
+    // 텍스트가 비어있으면 삭제
+    if (!text.trim() && onDelete) {
+      onDelete();
+      return;
+    }
+    // isEditing 플래그 제거 (초기 생성용이므로 한번만 사용)
+    if (onUpdate && data.noteConfig?.isEditing) {
+      onUpdate({
+        noteConfig: {
+          ...data.noteConfig,
+          isEditing: false
+        }
+      });
+    }
+  };
+
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    console.log('📝 텍스트 노트 클릭 - 편집 모드로 전환');
+    setIsEditing(true);
   };
 
   // Dynamic font sizing based on length roughly, or fixed.
   // Using user config if available
-  const fontSizeClass = data.noteConfig?.fontSize === 'large' ? 'text-4xl' : data.noteConfig?.fontSize === 'small' ? 'text-lg' : 'text-2xl';
+  const fontSize = data.noteConfig?.fontSize || '14px';
+  const fontSizeStyle = fontSize.endsWith('px') ? { fontSize } : undefined;
+  const fontSizeClass = !fontSizeStyle 
+    ? (fontSize === 'large' ? 'text-4xl' : fontSize === 'small' ? 'text-lg' : 'text-base')
+    : '';
 
   return (
     <div 
-        className="min-w-[150px] max-w-[400px] relative group"
-        onDoubleClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+        className="min-w-[150px] min-h-[24px] relative group cursor-text"
+        onClick={handleClick}
     >
         {isEditing ? (
              <textarea 
                 ref={textareaRef}
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => handleTextChange(e.target.value)}
                 onBlur={handleBlur}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                placeholder="텍스트를 입력하세요"
                 className={`
-                    w-full h-auto min-h-[100px] bg-transparent resize-none border-none outline-none 
-                    font-handwriting text-slate-800 ${fontSizeClass} leading-relaxed
-                    overflow-hidden p-2 ring-2 ring-purple-200 rounded
+                    w-full h-auto min-w-[150px] min-h-[24px] bg-white/90 resize-none
+                    border-2 border-blue-400 rounded-lg outline-none shadow-sm
+                    ${fontSizeClass} leading-relaxed
+                    overflow-hidden p-2
                 `}
-                style={{ height: textareaRef.current ? `${textareaRef.current.scrollHeight}px` : 'auto' }}
+                style={{ 
+                  height: textareaRef.current ? `${Math.max(textareaRef.current.scrollHeight, 24)}px` : '24px',
+                  fontFamily: 'var(--app-font, "Noto Sans KR", sans-serif)',
+                  color: '#000',
+                  caretColor: '#3b82f6',
+                  ...fontSizeStyle
+                }}
              />
         ) : (
-            <div className={`
-                font-handwriting text-slate-800 ${fontSizeClass} leading-relaxed whitespace-pre-wrap p-2
-                mix-blend-multiply opacity-90 cursor-text select-none
-                border border-transparent group-hover:border-slate-200/50 rounded transition-colors
-            `}>
-                {text}
-            </div>
-        )}
-        
-        {/* Helper hint on hover */}
-        {!isEditing && (
-            <div className="absolute -top-6 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-                Double click to edit
+            <div 
+              className={`
+                ${fontSizeClass} leading-relaxed whitespace-pre-wrap px-1 py-0.5 min-h-[24px]
+                cursor-text
+                border border-transparent group-hover:border-dashed group-hover:border-slate-300 rounded transition-all
+                bg-transparent group-hover:bg-slate-50/30
+              `}
+              style={{
+                fontFamily: 'var(--app-font, "Noto Sans KR", sans-serif)',
+                color: 'inherit',
+                ...fontSizeStyle
+              }}
+            >
+                {text || "텍스트를 입력하세요"}
             </div>
         )}
     </div>

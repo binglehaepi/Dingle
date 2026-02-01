@@ -371,7 +371,7 @@ const PaletteEditorModal: React.FC<PaletteEditorModalProps> = ({
   const centerShadowOpacityPercent = Math.round(centerShadowOpacity * 100);
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/20" onClick={handleBackdropClick}>
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-transparent" onClick={handleBackdropClick}>
       <div
         className="rounded-lg border w-[700px] max-w-[90vw] max-h-[90vh] flex flex-col"
         style={{ backgroundColor: surfaceBg, borderColor: border, color: text }}

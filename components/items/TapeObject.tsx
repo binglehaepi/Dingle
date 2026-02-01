@@ -3,15 +3,17 @@ import { ScrapMetadata } from '../../types';
 
 interface TapeObjectProps {
   data: ScrapMetadata;
+  width?: number;
+  height?: number;
 }
 
-const TapeObject: React.FC<TapeObjectProps> = ({ data }) => {
+const TapeObject: React.FC<TapeObjectProps> = ({ data, width = 180, height = 30 }) => {
   const color = data.tapeConfig?.color || 'rgba(255, 200, 200, 0.7)';
   
   return (
     <div 
-        className="w-[180px] h-[30px] shadow-sm backdrop-blur-[1px] flex items-center justify-center relative cursor-grab tape-edge"
-        style={{ backgroundColor: color }}
+        className="shadow-sm backdrop-blur-[1px] flex items-center justify-center relative cursor-grab tape-edge"
+        style={{ backgroundColor: color, width: `${width}px`, height: `${height}px` }}
     >
         {/* Tape Texture / Pattern */}
         {data.tapeConfig?.pattern === 'grid' && (

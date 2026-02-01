@@ -81,7 +81,7 @@ const FRUIT_STICKERS = [
     { name: '레몬', url: '/lemon_yellow_451.webp' },
     { name: '멜론', url: '/melon_cantaloupe_452.webp' },
     { name: '감', url: '/persimmon_453.webp' },
-    { name: '석류', url: '/pomegranate_open_454.webp' },
+    // { name: '석류', url: '/pomegranate_open_454.webp' }, // 파일 없음
     { name: '망고', url: '/mango_yellow_455.webp' },
     { name: '배', url: '/pear_green_456.webp' },
     { name: '블루베리', url: '/blueberries_group_457.webp' },

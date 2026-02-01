@@ -1,81 +1,60 @@
-import React, { useState, useRef } from 'react';
-import YouTube, { YouTubeProps } from 'react-youtube';
+import React from 'react';
 import { ScrapMetadata } from '../../types';
+import { useMusicStore } from '../../music/MusicStore';
 
 interface MusicCdObjectProps {
   data: ScrapMetadata;
 }
 
 const MusicCdObject: React.FC<MusicCdObjectProps> = ({ data }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const playerRef = useRef<any>(null);
+  // 전역 음악 상태 사용
+  const music = useMusicStore();
 
   const getVideoId = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null;
   };
+  
   const videoId = getVideoId(data.url);
 
-  const onPlayerReady: YouTubeProps['onReady'] = (event) => {
-    playerRef.current = event.target;
-  };
+  // 이 CD가 현재 재생 중인지 확인
+  const isThisTrackPlaying = !!videoId && 
+    music.provider === 'youtube' && 
+    music.videoId === videoId && 
+    music.isPlaying;
 
-  const onPlayerStateChange: YouTubeProps['onStateChange'] = (event) => {
-    // 1: Playing, 2: Paused, 0: Ended
-    if (event.data === 1) {
-        setIsPlaying(true);
-    } else if (event.data === 2 || event.data === 0) {
-        setIsPlaying(false);
+  // CD 클릭 핸들러
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!videoId) return;
+    
+    if (music.videoId !== videoId) {
+      // 다른 곡이면 변경 후 재생
+      music.setTrack(videoId);
+      music.play();
+    } else {
+      // 같은 곡이면 토글
+      music.toggle();
     }
-  };
-
-  const togglePlay = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (!playerRef.current) return;
-      
-      // If player exists, toggle state
-      if (isPlaying) {
-          playerRef.current.pauseVideo();
-      } else {
-          playerRef.current.playVideo();
-      }
   };
 
   if (!videoId) return <div className="p-4 bg-red-100 rounded">Invalid YouTube URL</div>;
 
   return (
     <div className="relative w-48 h-48 flex items-center justify-center">
-       {/* 1. Tiny Hidden YouTube Player (Behind the CD) */}
-       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-1 overflow-hidden opacity-0 pointer-events-none -z-10">
-           <YouTube 
-                videoId={videoId} 
-                opts={{ 
-                    height: '1', 
-                    width: '1', 
-                    playerVars: { 
-                        autoplay: 0, 
-                        controls: 0,
-                        playsinline: 1 
-                    } 
-                }}
-                onReady={onPlayerReady}
-                onStateChange={onPlayerStateChange}
-           />
-       </div>
-
-       {/* 2. The CD Visual (이중 테두리 제거: border-2 제거) */}
+       {/* CD Visual */}
        <div 
-          onClick={togglePlay}
+          onClick={handleClick}
           className={`
             w-48 h-48 rounded-full shadow-2xl relative cursor-pointer group 
             transition-transform duration-500 ease-out
-            ${isPlaying ? 'scale-110' : 'hover:scale-105'}
+            ${isThisTrackPlaying ? 'scale-110' : 'hover:scale-105'}
           `}
        >
-          {/* Album Art Container with Spin Animation (border 제거) */}
+          {/* Album Art Container with Spin Animation */}
           <div 
-            className={`w-full h-full rounded-full overflow-hidden relative shadow-md ${isPlaying ? 'animate-spin-slow' : 'paused-animation'}`}
+            className={`w-full h-full rounded-full overflow-hidden relative shadow-md ${isThisTrackPlaying ? 'animate-spin-slow' : 'paused-animation'}`}
             style={{ 
                 animationDuration: '4s',
                 backgroundColor: 'var(--cd-disc-color, #1e293b)'
@@ -93,14 +72,14 @@ const MusicCdObject: React.FC<MusicCdObjectProps> = ({ data }) => {
                 }}
              />
              
-             {/* CLEAN LOOK: Glossy Plastic Overlay (border 제거) */}
+             {/* Glossy Plastic Overlay */}
              <div className="gloss-overlay rounded-full opacity-50"></div>
              
-             {/* Inner hole: inset box-shadow로 변경 (border 제거) */}
+             {/* Inner hole */}
              <div className="absolute inset-[40%] rounded-full" style={{ boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.1)' }}></div>
           </div>
 
-          {/* Center Hole / Label (border 제거, box-shadow 사용) */}
+          {/* Center Hole / Label */}
           <div 
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center z-10"
             style={{ boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.1)' }}
@@ -109,8 +88,8 @@ const MusicCdObject: React.FC<MusicCdObjectProps> = ({ data }) => {
           </div>
 
           {/* Pause/Play Overlay (only on hover) */}
-          <div className={`absolute inset-0 rounded-full bg-black/20 flex items-center justify-center transition-opacity z-20 ${isPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-              {isPlaying ? (
+          <div className={`absolute inset-0 rounded-full bg-black/20 flex items-center justify-center transition-opacity z-20 ${isThisTrackPlaying ? 'opacity-0 hover:opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+              {isThisTrackPlaying ? (
                    <svg className="w-12 h-12 text-white fill-current drop-shadow-md" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
               ) : (
                    <svg className="w-12 h-12 text-white fill-current drop-shadow-md ml-1" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
@@ -125,7 +104,7 @@ const MusicCdObject: React.FC<MusicCdObjectProps> = ({ data }) => {
           px-4 py-1.5 rounded-sm shadow-md rotate-[-2deg]
           font-handwriting text-xl tracking-tight whitespace-nowrap 
           transition-opacity z-10
-          ${isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+          ${isThisTrackPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
        `}>
           🎵 {data.title.substring(0, 20)}...
        </div>

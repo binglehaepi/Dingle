@@ -71,7 +71,7 @@ export default function ExternalLinkModal({ isOpen, url, title, onClose }: Props
   if (!isOpen) return null;
 
   const modal = (
-    <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/30" onClick={onClose}>
+    <div className="fixed inset-0 z-[20000] flex items-center justify-center" onClick={onClose}>
       <div
         className="w-[520px] max-w-[92vw] border rounded-xl shadow-2xl overflow-hidden"
         style={{

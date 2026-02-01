@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld('electron', {
     ipcRenderer.invoke('diary:create', name, color, coverPattern),
   diaryList: () => ipcRenderer.invoke('diary:list'),
   diaryDelete: (diaryId: string) => ipcRenderer.invoke('diary:delete', diaryId),
+  diaryBackup: () => ipcRenderer.invoke('diary:backup'),
+  diaryRestore: () => ipcRenderer.invoke('diary:restore'),
   diaryLoad: (diaryId: string) => ipcRenderer.invoke('diary:load', diaryId),
   diarySave: (diaryId: string, data: any) => ipcRenderer.invoke('diary:save', diaryId, data),
   diaryOpenInOverlay: (diaryId: string) => ipcRenderer.invoke('diary:openInOverlay', diaryId),

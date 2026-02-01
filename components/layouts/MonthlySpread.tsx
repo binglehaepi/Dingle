@@ -5,8 +5,13 @@ import { formatDateKey } from '../../utils/dateHelpers';
 import LinkDock from '../LinkDock';
 import MarqueeField from '../calendar/MarqueeField';
 import { useMusicStore } from '../../music/MusicStore';
-import { fetchOhaasa, getSignLabelKo, OHAASA_SIGNS, OHAASA_X_URL, type OhaasaResult, type OhaasaSignId } from '../../services/ohaasa';
+import { fetchOhaasa, getSignLabelKo, OHAASA_SIGNS, OHAASA_X_URL, getColorHex, type OhaasaResult, type OhaasaSignId } from '../../services/ohaasa';
 import ExternalLinkModal from '../ExternalLinkModal';
+import CompactModal from '../CompactModal';
+import CalendarPhotoModal from '../CalendarPhotoModal';
+
+// ✅ 버전 확인용 (디버깅)
+console.log('🔮 MonthlySpread 로드됨 - 오하아사 v2.0 (행운 컬러 포함)');
 
 interface MonthlySpreadProps {
   currentDate: Date;
@@ -17,6 +22,7 @@ interface MonthlySpreadProps {
   onUpdateText: (key: string, field: string, value: string) => void;
   viewMode?: 'left' | 'right' | 'both';
   onYearChange?: (year: number) => void;
+  compactMode?: boolean; // 1100px 모드일 때 true
 
   // 🔗 Link Dock (optional, desktop MVP)
   linkDockItems?: LinkDockItem[];
@@ -34,6 +40,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
   onUpdateText,
   viewMode = 'both',
   onYearChange,
+  compactMode,
   linkDockItems,
   setLinkDockItems,
   onInsertLinksToDate,
@@ -80,6 +87,15 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
   const [goalInput, setGoalInput] = useState('');
   const [bucketInput, setBucketInput] = useState('');
   const [showDdayDatePicker, setShowDdayDatePicker] = useState(false);
+
+  // 🎨 CD 플레이어 사진 관리 모달
+  const [cdPhotoModalOpen, setCdPhotoModalOpen] = useState(false);
+
+  // 🖼️ 프로필 사진 관리 모달
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+
+  // 📅 달 헤더 사진 관리 모달
+  const [monthHeaderModalOpen, setMonthHeaderModalOpen] = useState(false);
 
   // 🔮 OhaAsa Horoscope
   const OHAASA_SIGN_KEY = 'dingel:ohaasa:selectedSign';
@@ -183,8 +199,12 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
           if (id) {
               const thumbUrl = `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
               onUpdateText(dashboardKey, 'photoUrl', thumbUrl);
-              // ✅ set current track for persistent player (no autoplay here)
+              // ✅ 전역 MusicStore에 트랙 설정 및 재생
               music.setTrack(id);
+              music.play();
+          } else if (url.trim()) {
+              // 올바르지 않은 URL
+              alert('올바른 YouTube URL을 입력해주세요.\n예: https://youtube.com/watch?v=...');
           }
           
           setShowLinkInput(false);
@@ -270,6 +290,12 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
       saveGoalsList(newItems);
   };
 
+  const removeGoal = (index: number, e: React.MouseEvent) => {
+      e.stopPropagation();
+      const newItems = goals.filter((_, i) => i !== index);
+      saveGoalsList(newItems);
+  };
+
   // Bucket List Management (Task Format)
   const parseBucketList = () => {
       const raw = currentData.bucketList || '';
@@ -310,6 +336,12 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
       const newItems = bucketItems.map((item, i) => 
           i === index ? { ...item, completed: !item.completed } : item
       );
+      saveBucketList(newItems);
+  };
+
+  const removeBucket = (index: number, e: React.MouseEvent) => {
+      e.stopPropagation();
+      const newItems = bucketItems.filter((_, i) => i !== index);
       saveBucketList(newItems);
   };
 
@@ -386,7 +418,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
             
             {displayImage ? (
                 <>
-                    <div className="absolute inset-1 rounded-sm overflow-hidden z-0">
+                    <div className="absolute inset-0 rounded-sm overflow-hidden z-0">
                         <img 
                             src={displayImage} 
                             alt="day cover" 
@@ -394,8 +426,12 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                         />
                     </div>
                     <span
-                      className="relative z-10 text-[9px] font-mono font-bold ml-0.5 px-1.5 py-0.5 rounded bg-white/70"
-                      style={{ color: 'var(--text-color-primary, #764737)', opacity: isInMonth ? 1 : 0.35 }}
+                      className={`relative z-10 ${compactMode ? 'text-[8px]' : 'text-[9px]'} font-mono font-bold ml-0.5 px-1 py-0.5 rounded`}
+                      style={{ 
+                        color: 'var(--text-color-primary, #764737)', 
+                        opacity: isInMonth ? 1 : 0.35,
+                        textShadow: '0 0 2px rgba(255, 255, 255, 0.8), 0 0 4px rgba(255, 255, 255, 0.6)'
+                      }}
                     >
                       {date.getDate()}
                     </span>
@@ -403,7 +439,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
             ) : (
                 <>
                     <span
-                        className="text-[9px] font-mono font-bold ml-1"
+                        className={`${compactMode ? 'text-[8px]' : 'text-[9px]'} font-mono font-bold ml-1`}
                         style={{ color: 'var(--text-color-primary, #764737)', opacity: isInMonth ? 1 : 0.35 }}
                     >
                         {date.getDate()}
@@ -446,14 +482,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
           borderRightWidth: '2px',
         }}
       >
-         <div className="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none z-0">
-             <span
-                className="font-handwriting text-4xl rotate-[-10deg]"
-                style={{ color: 'var(--text-color-primary, #764737)' }}
-             >
-                Dashboard
-             </span>
-         </div>
+         {/* Dashboard 텍스트 제거 - 오하아사 위젯과 겹침 방지 */}
          
          <div className="relative z-10 w-full h-full flex flex-col gap-4">
             
@@ -464,7 +493,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                     {/* Bar에서 이름 수정 */}
                     <input 
                         data-widget-bar
-                        className="flex-shrink-0 bg-transparent text-center outline-none text-sm py-1"
+                        className={`flex-shrink-0 bg-transparent text-center outline-none ${compactMode ? 'text-xs' : 'text-sm'} py-1`}
                         style={{ background: 'var(--profile-header-bar-bg, #F9D4F0)', borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))' }}
                         value={currentData.profileName || ''}
                         onChange={(e) => onUpdateText(dashboardKey, 'profileName', e.target.value)}
@@ -479,12 +508,12 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                             style={{ borderRadius: '8px' }}
                             onClick={(e) => {
                                 e.stopPropagation();
-                                profileImageRef.current?.click();
+                                setProfileModalOpen(true);
                             }}
                             onTouchEnd={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
-                                profileImageRef.current?.click();
+                                setProfileModalOpen(true);
                             }}
                         >
                             {currentData.profileImage ? (
@@ -537,7 +566,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                 {/* 2. Goals - Checklist (진행도 제거) */}
                 <div data-widget="goals" className="flex-1 border flex flex-col backdrop-blur-[1px] overflow-hidden" style={{ borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))', backgroundColor: 'var(--widget-surface-background, #ffffff)' }}>
                     {/* Bar (진행도 없음) */}
-                    <div data-widget-bar className="text-center text-[13px] py-1" style={{ background: 'var(--goals-header-bar-bg, #FEDFDC)', borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))' }}>
+                    <div data-widget-bar className={`text-center ${compactMode ? 'text-[11px]' : 'text-[13px]'} py-1`} style={{ background: 'var(--goals-header-bar-bg, #FEDFDC)', borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))' }}>
                         Monthly Goals
                     </div>
                     <div className="flex-1 p-3 flex flex-col overflow-hidden">
@@ -580,6 +609,13 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                                     <span className={`flex-1 text-xs ${item.completed ? 'line-through opacity-50' : ''}`} style={{ color: 'var(--text-color-primary, #764737)' }}>
                                         {item.text}
                                     </span>
+                                    <button
+                                        onClick={(e) => removeGoal(idx, e)}
+                                        className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-100 transition-colors"
+                                        title="삭제"
+                                    >
+                                        <span className="text-xs text-red-500">×</span>
+                                    </button>
                                 </div>
                             ))}
                         </div>
@@ -610,7 +646,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                         {/* 상단 바: Event 이름 입력 */}
                         <input 
                             data-widget-bar
-                            className="relative z-10 w-full bg-transparent text-center outline-none text-[13px] py-1"
+                            className={`relative z-10 w-full bg-transparent text-center outline-none ${compactMode ? 'text-[11px]' : 'text-[13px]'} py-1`}
                             style={{ background: 'var(--dday-header-bar-bg, #FCF5C8)', borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))' }}
                             value={currentData.dDayTitle || ''}
                             onChange={(e) => onUpdateText(dashboardKey, 'dDayTitle', e.target.value)}
@@ -694,7 +730,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                         </button>
                     </div>
 
-                    {/* 8. OhaAsa - Box Widget (별 제거) */}
+                    {/* 8. OhaAsa - 3단 구조 */}
                     <div
                       ref={ohaasaRef}
                       data-widget="ohaasa"
@@ -704,15 +740,14 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                         backgroundColor: 'var(--widget-surface-background, #ffffff)',
                       }}
                     >
-                      {/* Top bar: click to open sign dropdown */}
+                      {/* 1. 상단: 별자리 드롭다운 */}
                       <div className="relative">
                         <button
                           type="button"
                           data-widget-bar
-                          className="w-full text-center text-[13px] py-1 cursor-pointer select-none transition-all hover:brightness-95 active:brightness-90 active:translate-y-[1px]"
+                          className={`w-full text-center ${compactMode ? 'text-[11px]' : 'text-[13px]'} py-0.5 cursor-pointer select-none transition-all hover:brightness-95 active:brightness-90 active:translate-y-[1px]`}
                           style={{
                             background: 'var(--ohaasa-header-bar-bg, #EBE7F5)',
-                            borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))',
                             color: 'inherit',
                           }}
                           onClick={(e) => {
@@ -754,6 +789,8 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                                     const next = s.id as OhaasaSignId;
                                     setOhaasaSign(next);
                                     setOhaasaOpen(false);
+                                    setOhaasaResult(null);
+                                    setOhaasaError('');
                                     try {
                                       localStorage.setItem(OHAASA_SIGN_KEY, next);
                                     } catch {
@@ -772,68 +809,78 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                         )}
                       </div>
 
-                      {/* Body */}
-                      <div className="flex-1 p-3 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="w-full h-8 px-2 rounded border text-[11px] font-bold active:scale-95 transition-all disabled:opacity-50"
+                      {/* 2. 하단: 2열 레이아웃 - 순위 확인 & 결과 표시 */}
+                      <div 
+                        className="flex-1 flex"
+                        style={{
+                          borderTop: '1px solid var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                        }}
+                        ref={(el) => {
+                          if (el) console.log('🔮 오하아사 하단 UI 렌더링됨 (v2.0 - 2열 레이아웃)');
+                        }}
+                      >
+                        {/* 왼쪽: 순위 확인 버튼만 */}
+                        <div 
+                          className="flex-1 p-2 flex items-center justify-center"
                           style={{
-                            backgroundColor: 'var(--widget-surface-background, #ffffff)',
-                            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
-                            color: 'inherit',
+                            borderRight: '1px solid var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
                           }}
-                          onClick={() => {
-                            // ✅ fetch only on button click
-                            handleOhaasaFetch({ force: !!ohaasaResult?.rank });
-                          }}
-                          disabled={ohaasaLoading}
                         >
-                          {ohaasaLoading
-                            ? '불러오는 중…'
-                            : ohaasaError
-                              ? '다시 시도'
-                              : ohaasaResult?.rank
-                                ? `${ohaasaResult.rank}위`
-                                : '오늘의 오하아사 확인'}
-                        </button>
-
-                        <div className="flex-1 flex flex-col justify-center items-center text-center gap-1">
-                          {ohaasaError ? (
-                            <div className="text-[11px]" style={{ opacity: 0.85 }}>
-                              불러오기 실패
+                          <button
+                            className="px-3 py-1.5 text-xs font-medium rounded border hover:opacity-80 transition-all disabled:opacity-50"
+                            style={{
+                              backgroundColor: 'var(--widget-surface-background, #ffffff)',
+                              borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                              color: 'inherit',
+                            }}
+                            onClick={() => {
+                              if (ohaasaResult?.rank) {
+                                // 이미 순위가 있으면 외부 링크 모달 열기
+                                setOhaasaLinkModalUrl('https://x.com/Hi_Ohaasa');
+                                setOhaasaLinkModalOpen(true);
+                              } else {
+                                // 순위가 없으면 가져오기
+                                handleOhaasaFetch({ force: false });
+                              }
+                            }}
+                            disabled={ohaasaLoading}
+                          >
+                            {ohaasaLoading ? '확인 중...' : '순위 확인'}
+                          </button>
+                        </div>
+                        
+                        {/* 오른쪽: 결과 표시 (오늘의 오하아사 OR 순위+행운컬러) */}
+                        <div className="flex-1 p-2 flex flex-col items-center justify-center gap-1">
+                          {!ohaasaResult?.rank ? (
+                            // 순위가 없으면 "오늘의 오하아사" 표시
+                            <div className="text-[10px] opacity-70 text-center leading-tight" style={{ color: 'inherit' }}>
+                              오늘의<br />오하아사
                             </div>
-                          ) : ohaasaResult?.rank ? (
+                          ) : (
+                            // 순위가 있으면 순위 + 행운 컬러 표시
                             <>
-                              <div className="text-[12px] font-bold">
-                                오늘 {getSignLabelKo(ohaasaSign)} : {ohaasaResult.rank}위
+                              <div className="text-lg font-bold" style={{ color: 'inherit' }}>
+                                {ohaasaResult.rank}위
                               </div>
-                              {!isTranslationFailed(ohaasaResult) && (
-                                <div className="text-[11px]" style={{ opacity: 0.85 }}>
-                                  {ohaasaResult.textKo}
+                              {ohaasaResult.luckyColor && (
+                                <div className="flex items-center gap-1">
+                                  <div 
+                                    className="w-4 h-4 rounded border flex-shrink-0"
+                                    style={{
+                                      backgroundColor: getColorHex(ohaasaResult.luckyColor),
+                                      borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                                    }}
+                                  />
+                                  <span className="text-[10px] font-medium" style={{ color: 'inherit' }}>
+                                    {ohaasaResult.luckyColor}
+                                  </span>
                                 </div>
                               )}
                             </>
-                          ) : (
-                            <div className="text-[11px]" style={{ opacity: 0.65 }}>
-                              별자리를 선택하고 버튼을 눌러주세요
-                            </div>
                           )}
-
-                          <button
-                            type="button"
-                            className="text-[10px] underline"
-                            style={{ opacity: 0.7, color: 'inherit' }}
-                            onClick={() => {
-                              const url =
-                                ohaasaError || isTranslationFailed(ohaasaResult)
-                                  ? OHAASA_X_URL
-                                  : ohaasaResult?.sourceUrl || OHAASA_X_URL;
-                              setOhaasaLinkModalUrl(url);
-                              setOhaasaLinkModalOpen(true);
-                            }}
-                            title="원문 보기(새 창)"
-                          >
-                            원문 보기
-                          </button>
+                          {ohaasaLoading && (
+                            <div className="text-[10px] opacity-50">로딩 중...</div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -923,11 +970,11 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                          {/* 우측 컨트롤 패널 */}
                          <div className="relative z-10 flex-1 flex flex-col h-full justify-center gap-2 min-w-0">
                              {/* 스크린: border 유지 (내부 요소이므로 허용) */}
-                            <div 
-                                className="rounded p-2 shadow-inner mb-1 flex items-center h-16 relative overflow-hidden"
+                             <div 
+                                className="rounded p-2 shadow-inner mb-1 flex items-center h-16 relative overflow-hidden border"
                                 style={{
                                     backgroundColor: 'var(--cd-screen-bg, #1e293b)',
-                                    border: 'var(--ui-stroke-width, 1px) solid var(--ui-stroke-color)'
+                                    borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))'
                                 }}
                              >
                                  <div className="absolute inset-0 bg-teal-500/5 pointer-events-none"></div>
@@ -983,48 +1030,26 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                                         >
                                             <span className="text-[10px] font-bold" style={{ color: 'var(--text-color-primary, #764737)' }}>LINK</span>
                                         </button>
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                musicCoverInputRef.current?.click();
-                                            }}
-                                            onTouchEnd={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                musicCoverInputRef.current?.click();
-                                            }}
-                                            className="h-10 w-10 rounded shadow-sm border transition-all flex items-center justify-center active:scale-95 touch-manipulation text-xl"
-                                            style={{
-                                                backgroundColor: 'var(--cd-button-bg, #ffffff)',
-                                                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
-                                                color: 'var(--text-color-primary, #764737)'
-                                            }}
-                                            title="Change CD Cover"
-                                        >
-                                            💿
-                                        </button>
-                                        <button 
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                cdBodyBgImageRef.current?.click();
-                                            }}
-                                            onTouchEnd={(e) => {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                cdBodyBgImageRef.current?.click();
-                                            }}
-                                            className="h-10 w-10 rounded shadow-sm border transition-all flex items-center justify-center active:scale-95 touch-manipulation"
-                                            style={{
-                                                backgroundColor: 'var(--cd-button-bg, #ffffff)',
-                                                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
-                                                color: 'var(--text-color-primary, #764737)'
-                                            }}
-                                            title="Change Player Background"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 14.5c-2.49 0-4.5-2.01-4.5-4.5S9.51 7.5 12 7.5s4.5 2.01 4.5 4.5-2.01 4.5-4.5 4.5zm0-5.5c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1z"/>
-                                            </svg>
-                                        </button>
+                        <button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setCdPhotoModalOpen(true);
+                            }}
+                            onTouchEnd={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setCdPhotoModalOpen(true);
+                            }}
+                            className="h-10 w-10 rounded shadow-sm border transition-all flex items-center justify-center active:scale-95 touch-manipulation text-xl"
+                            style={{
+                                backgroundColor: 'var(--cd-button-bg, #ffffff)',
+                                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                                color: 'var(--text-color-primary, #764737)'
+                            }}
+                            title="사진 관리"
+                        >
+                            💿
+                        </button>
                                     </div>
                                  )}
                                  
@@ -1061,7 +1086,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                 
                 <div className="relative z-10 flex flex-col h-full">
                     {/* Bar (진행도 제거) */}
-                    <div data-widget-bar className="text-center text-[13px] py-1" style={{ background: 'var(--bucket-header-bar-bg, #EFF1AA)', borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))' }}>
+                    <div data-widget-bar className={`text-center ${compactMode ? 'text-[11px]' : 'text-[13px]'} py-1`} style={{ background: 'var(--bucket-header-bar-bg, #EFF1AA)', borderBottom: '1px solid var(--widget-border-color, var(--ui-stroke-color, #94a3b8))' }}>
                         Bucket List
                     </div>
                     
@@ -1106,30 +1131,20 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                                     <span className={`flex-1 text-xs ${item.completed ? 'line-through opacity-50' : ''}`} style={{ color: 'var(--text-color-primary, #764737)' }}>
                                         {item.text}
                                     </span>
+                                    <button
+                                        onClick={(e) => removeBucket(idx, e)}
+                                        className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-100 transition-colors"
+                                        title="삭제"
+                                    >
+                                        <span className="text-xs text-red-500">×</span>
+                                    </button>
                                 </div>
                             ))}
                         </div>
                     </div>
                     
                     {/* 배경 변경 버튼 (우측 하단, 작은 버튼) */}
-                    <button
-                        className="absolute bottom-2 right-2 z-10 w-7 h-7 flex items-center justify-center bg-white/80 hover:bg-white rounded opacity-0 group-hover/bucket:opacity-100 transition-all"
-                        style={{ color: 'var(--text-color-primary, #764737)' }}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            bucketBgImageRef.current?.click();
-                        }}
-                        onTouchEnd={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            bucketBgImageRef.current?.click();
-                        }}
-                        title="Change Background"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                        </svg>
-                    </button>
+                    {/* 버킷리스트 사진 아이콘 제거됨 */}
                 </div>
             </div>
          </div>
@@ -1152,7 +1167,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
             data-calendar-header-bar
             className="w-full border rounded-lg"
             style={{
-              borderColor: 'var(--ui-stroke-color, #d1d5db)',
+              borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
               backgroundColor: 'var(--widget-surface-background, #ffffff)',
               backgroundImage: currentData.monthHeaderBg ? `url(${currentData.monthHeaderBg})` : 'none',
               backgroundSize: 'cover',
@@ -1163,7 +1178,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
               paddingLeft: 12,
               paddingRight: 12,
               display: 'grid',
-              gridTemplateColumns: '140px 1fr 120px',
+              gridTemplateColumns: compactMode ? '100px 1fr 100px' : '140px 1fr 140px',
               alignItems: 'center',
               gap: 12,
               color: 'inherit',
@@ -1177,12 +1192,12 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                   backgroundColor: 'var(--widget-surface-background, #ffffff)',
                   borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
                   color: 'inherit',
-                  fontSize: 16,
+                  fontSize: compactMode ? 14 : 16,
                   fontWeight: 700,
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  monthHeaderBgRef.current?.click();
+                  setMonthHeaderModalOpen(true);
                 }}
                 title="헤더 커버 변경"
               >
@@ -1234,7 +1249,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                 </svg>
               </button>
 
-              <span className="text-[13px]" style={{ fontWeight: 600 }}>
+              <span className={compactMode ? "text-[11px]" : "text-[13px]"} style={{ fontWeight: 600 }}>
                 {year}
               </span>
 
@@ -1293,7 +1308,7 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                      {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((d, i) => (
                          <div 
                             key={d} 
-                            className="flex items-center justify-center font-mono font-bold text-xs relative group/dow overflow-hidden"
+                            className={`flex items-center justify-center font-mono font-bold ${compactMode ? 'text-[10px]' : 'text-xs'} relative group/dow overflow-hidden`}
                             style={{
                                 borderRight: i < 6 ? '1px solid var(--calendar-grid-line-color, var(--ui-stroke-color, #d1d5db))' : 'none',
                                 borderBottom: '1px solid var(--calendar-grid-line-color, var(--ui-stroke-color, #d1d5db))',
@@ -1335,7 +1350,8 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                    className="grid grid-cols-7 flex-1"
                    style={{
                      gridTemplateRows: 'repeat(6, 1fr)',
-                     gap: 0
+                     gap: 0,
+                     minHeight: compactMode ? '550px' : 'auto'
                    }}
                  >
                    {weeks.map((week, wIdx) =>
@@ -1370,6 +1386,154 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
           )}
       </div>
       )}
+
+      {/* CD 플레이어 사진 관리 모달 */}
+      <CompactModal
+        isOpen={cdPhotoModalOpen}
+        onClose={() => setCdPhotoModalOpen(false)}
+        title="CD 플레이어 사진 관리"
+      >
+        <button
+          className="w-full px-3 py-1.5 text-xs font-medium rounded border hover:opacity-80 transition-all"
+          style={{
+            backgroundColor: 'var(--widget-surface-background, #ffffff)',
+            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+            color: 'inherit',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            musicCoverInputRef.current?.click();
+            setCdPhotoModalOpen(false);
+          }}
+        >
+          💿 CD 커버 사진 교체
+        </button>
+        <button
+          className="w-full px-3 py-1.5 text-xs font-medium rounded border hover:opacity-80 transition-all"
+          style={{
+            backgroundColor: 'var(--widget-surface-background, #ffffff)',
+            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+            color: 'inherit',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            cdBodyBgImageRef.current?.click();
+            setCdPhotoModalOpen(false);
+          }}
+        >
+          🎨 플레이어 본체 사진 교체
+        </button>
+        {currentData.photoUrl && (
+          <button
+            className="w-full px-3 py-1.5 text-xs font-medium rounded border hover:opacity-80 transition-all text-red-600"
+            style={{
+              backgroundColor: 'var(--widget-surface-background, #ffffff)',
+              borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUpdateText(dashboardKey, 'photoUrl', '');
+              setCdPhotoModalOpen(false);
+            }}
+          >
+            🗑️ CD 커버 삭제
+          </button>
+        )}
+        {currentData.cdBodyBgImage && (
+          <button
+            className="w-full px-3 py-1.5 text-xs font-medium rounded border hover:opacity-80 transition-all text-red-600"
+            style={{
+              backgroundColor: 'var(--widget-surface-background, #ffffff)',
+              borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUpdateText(dashboardKey, 'cdBodyBgImage', '');
+              setCdPhotoModalOpen(false);
+            }}
+          >
+            🗑️ 플레이어 본체 삭제
+          </button>
+        )}
+      </CompactModal>
+
+      {/* 프로필 사진 관리 모달 */}
+      <CompactModal
+        isOpen={profileModalOpen}
+        onClose={() => setProfileModalOpen(false)}
+        title="프로필 사진 관리"
+      >
+        <button
+          className="w-full px-3 py-1.5 text-xs font-medium rounded border hover:opacity-80 transition-all"
+          style={{
+            backgroundColor: 'var(--widget-surface-background, #ffffff)',
+            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+            color: 'inherit',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            profileImageRef.current?.click();
+            setProfileModalOpen(false);
+          }}
+        >
+          이번 달만 등록
+        </button>
+        <button
+          className="w-full px-3 py-1.5 text-xs font-medium rounded border hover:opacity-80 transition-all"
+          style={{
+            backgroundColor: 'var(--widget-surface-background, #ffffff)',
+            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+            color: 'inherit',
+          }}
+          onClick={async (e) => {
+            e.stopPropagation();
+            if (!currentData.profileImage) {
+              alert('먼저 프로필 사진을 등록해주세요.');
+              profileImageRef.current?.click();
+              return;
+            }
+            // 2026년 전체 월에 동일 프로필 사진 적용
+            for (let m = 1; m <= 12; m++) {
+              const key = `2026-${String(m).padStart(2, '0')}-DASHBOARD`;
+              onUpdateText(key, 'profileImage', currentData.profileImage);
+            }
+            setProfileModalOpen(false);
+          }}
+        >
+          2026년 전체 등록
+        </button>
+        {currentData.profileImage && (
+          <button
+            className="w-full px-3 py-1.5 text-xs font-medium rounded border hover:opacity-80 transition-all text-red-600"
+            style={{
+              backgroundColor: 'var(--widget-surface-background, #ffffff)',
+              borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUpdateText(dashboardKey, 'profileImage', '');
+              setProfileModalOpen(false);
+            }}
+          >
+            🗑️ 사진 삭제
+          </button>
+        )}
+      </CompactModal>
+
+      {/* 달력 사진 관리 모달 - 고도화 버전 */}
+      <CalendarPhotoModal
+        isOpen={monthHeaderModalOpen}
+        onClose={() => setMonthHeaderModalOpen(false)}
+        year={year}
+        month={month}
+        textData={textData}
+        onUpdateText={onUpdateText}
+        dashboardKey={dashboardKey}
+        monthHeaderBgRef={monthHeaderBgRef}
+        currentMonthHeaderBg={currentData.monthHeaderBg}
+        dowKeys={dowKeys}
+        dowRefs={dowRefs}
+      />
     </>
   );
 };

@@ -176,7 +176,7 @@ const LinkDock: React.FC<LinkDockProps> = ({ viewDate, items, setItems, onInsert
           className="shrink-0 h-8 px-3 rounded text-[12px] font-bold disabled:opacity-50 active:scale-95 transition-all"
           style={{
             minWidth: 64,
-            backgroundColor: '#f7f5ed',
+            backgroundColor: 'var(--widget-surface-background, #ffffff)',
             border: 'var(--ui-stroke-width, 1px) solid var(--ui-stroke-color)',
             color: 'inherit',
           }}
@@ -209,7 +209,7 @@ const LinkDock: React.FC<LinkDockProps> = ({ viewDate, items, setItems, onInsert
             <button
               className="shrink-0 h-8 w-8 rounded disabled:opacity-50 active:scale-95 transition-all flex items-center justify-center"
               style={{
-                backgroundColor: '#f7f5ed',
+                backgroundColor: 'var(--widget-surface-background, #ffffff)',
                 border: 'var(--ui-stroke-width, 1px) solid var(--ui-stroke-color)',
                 color: 'inherit',
               }}
@@ -224,12 +224,6 @@ const LinkDock: React.FC<LinkDockProps> = ({ viewDate, items, setItems, onInsert
           </>
         )}
 
-        {/* 작은 폭에서도 줄바꿈 방지용, 상태는 조용히 표시 */}
-        {pending.length > 0 && (
-          <div className="shrink-0 text-[10px]" style={{ color: 'inherit', opacity: 0.55 }}>
-            +{pending.length}
-          </div>
-        )}
       </div>
     </div>
   );

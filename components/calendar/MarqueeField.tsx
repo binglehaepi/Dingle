@@ -164,8 +164,11 @@ const MarqueeField: React.FC<Props> = ({ storageKey, placeholder = DEFAULT_PLACE
               setIsEditing(false);
             }
           }}
-          className="w-full min-w-0 bg-transparent outline-none text-[12px]"
-          style={{ color: 'inherit' }}
+          className="w-full min-w-0 outline-none text-[12px]"
+          style={{
+            backgroundColor: 'var(--widget-input-background, #f8fafc)',
+            color: 'inherit',
+          }}
           placeholder={placeholder}
         />
       ) : (

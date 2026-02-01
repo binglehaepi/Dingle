@@ -25,8 +25,62 @@ function toYouTubeEmbedUrl(url: string): string | null {
   return null;
 }
 
+function toSpotifyEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('spotify.com')) {
+      // https://open.spotify.com/track/ABC -> https://open.spotify.com/embed/track/ABC
+      const path = u.pathname;
+      if (!path.includes('/embed/')) {
+        return `https://open.spotify.com/embed${path}`;
+      }
+      return url;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function toSoundCloudEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('soundcloud.com')) {
+      // https://soundcloud.com/artist/track -> https://w.soundcloud.com/player/?url=...
+      return `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&auto_play=false&hide_related=false&show_comments=true&show_user=true&show_reposts=false&show_teaser=true&visual=true`;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function toPinterestEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    if (u.hostname.includes('pinterest.com')) {
+      // https://www.pinterest.com/pin/123456/ -> extract pin ID
+      const match = u.pathname.match(/\/pin\/(\d+)/);
+      if (match && match[1]) {
+        return `https://assets.pinterest.com/ext/embed.html?id=${match[1]}`;
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 export default function EmbedPreviewModal({ isOpen, url, title, onClose }: EmbedPreviewModalProps) {
-  const embedUrl = useMemo(() => toYouTubeEmbedUrl(url) ?? url, [url]);
+  const embedUrl = useMemo(() => {
+    return (
+      toYouTubeEmbedUrl(url) ??
+      toSpotifyEmbedUrl(url) ??
+      toSoundCloudEmbedUrl(url) ??
+      toPinterestEmbedUrl(url) ??
+      url
+    );
+  }, [url]);
   const [loaded, setLoaded] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
 

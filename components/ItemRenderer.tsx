@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrapItem, ScrapType, ScrapMetadata } from '../types';
+import { ScrapItem, ScrapType, ScrapMetadata, LayoutTextData } from '../types';
 
 // Item Components
 import TwitterEmbedCard from './items/TwitterEmbedCard';
@@ -31,6 +31,9 @@ import GoogleMapCard from './items/GoogleMapCard';
 interface ItemRendererProps {
   item: ScrapItem;
   onUpdateMetadata: (id: string, newMeta: Partial<ScrapMetadata>) => void;
+  onDeleteItem?: (id: string) => void;
+  onUpdateText?: (key: string, value: string) => void;
+  textData?: LayoutTextData;
 }
 
 /**
@@ -38,7 +41,7 @@ interface ItemRendererProps {
  * 
  * App.tsx의 renderItemContent 로직을 분리
  */
-export const ItemRenderer: React.FC<ItemRendererProps> = ({ item, onUpdateMetadata }) => {
+export const ItemRenderer: React.FC<ItemRendererProps> = ({ item, onUpdateMetadata, onDeleteItem, onUpdateText, textData }) => {
   // Decoration feature removed for MVP - cards render without decorations
 
   // 🟢 1차 릴리즈: Platform 기반 렌더링
@@ -70,16 +73,16 @@ export const ItemRenderer: React.FC<ItemRendererProps> = ({ item, onUpdateMetada
       return <TodoWidget data={item.metadata} onUpdate={(d) => onUpdateMetadata(item.id, d)} />;
     
     case ScrapType.OHAASA:
-      return <OhaAsaWidget data={item.metadata} />;
+      return <OhaAsaWidget data={item.metadata} onUpdateText={onUpdateText} textData={textData} />;
     
     case ScrapType.MOVING_PHOTO:
       return <MovingPhotoObject data={item.metadata} />;
     
     case ScrapType.STICKER:
-      return <StickerObject data={item.metadata} />;
+      return <StickerObject data={item.metadata} width={item.w} height={item.h} />;
     
     case ScrapType.TAPE:
-      return <TapeObject data={item.metadata} />;
+      return <TapeObject data={item.metadata} width={item.w} height={item.h} />;
     
     case ScrapType.TWITTER:
       return <TwitterEmbedCard data={item.metadata} />;
@@ -99,6 +102,9 @@ export const ItemRenderer: React.FC<ItemRendererProps> = ({ item, onUpdateMetada
         : <VideoPlayerObject data={item.metadata} />;
     
     case ScrapType.SPOTIFY:
+      return <MediaCard data={item.metadata} />;
+    
+    case ScrapType.SOUNDCLOUD:
       return <MediaCard data={item.metadata} />;
     
     case ScrapType.TIKTOK:
@@ -129,7 +135,11 @@ export const ItemRenderer: React.FC<ItemRendererProps> = ({ item, onUpdateMetada
       return <CupSleeveObject data={item.metadata} />;
     
     case ScrapType.NOTE:
-      return <TextNoteObject data={item.metadata} />;
+      return <TextNoteObject 
+        data={item.metadata} 
+        onDelete={() => onDeleteItem?.(item.id)}
+        onUpdate={(newMeta) => onUpdateMetadata(item.id, newMeta)}
+      />;
     
     default:
       return <EditableScrap data={item.metadata} onSave={(newData) => onUpdateMetadata(item.id, newData)} />;

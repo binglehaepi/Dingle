@@ -1,10 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { KeyringFrameType } from '../../types';
+import BackupDialog from '../BackupDialog';
+import { ScrapItem, LayoutTextData, DiaryStyle, LinkDockItem } from '../../types';
 
 interface SettingsPanelProps {
   onClose: () => void;
   onExportPDF: () => void;
-  onOpenBackup: () => void;
+  onOpenBackup?: () => void; // 옵셔널로 변경
   onManualSave: () => void;
+  compactMode?: boolean;
+  onCompactModeChange?: (compact: boolean) => void;
+  keyringFrame?: KeyringFrameType;
+  onKeyringFrameChange?: (frame: KeyringFrameType) => void;
+  
+  // ✅ 백업/복원을 위한 props 추가
+  items?: ScrapItem[];
+  textData?: LayoutTextData;
+  diaryStyle?: DiaryStyle;
+  linkDockItems?: LinkDockItem[];
+  setItems?: React.Dispatch<React.SetStateAction<ScrapItem[]>>;
+  setTextData?: React.Dispatch<React.SetStateAction<LayoutTextData>>;
+  setDiaryStyle?: React.Dispatch<React.SetStateAction<DiaryStyle>>;
+  setLinkDockItems?: React.Dispatch<React.SetStateAction<LinkDockItem[]>>;
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
@@ -12,10 +29,44 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onExportPDF,
   onOpenBackup,
   onManualSave,
+  compactMode,
+  onCompactModeChange,
+  keyringFrame = 'rounded-square',
+  onKeyringFrameChange,
+  items = [],
+  textData = {},
+  diaryStyle,
+  linkDockItems = [],
+  setItems,
+  setTextData,
+  setDiaryStyle,
+  setLinkDockItems,
 }) => {
+  // ✅ 백업 다이얼로그 상태
+  const [showBackupDialog, setShowBackupDialog] = useState(false);
+  
+  // ✅ 웹 브라우저용 백업/복원 가능 여부 체크 (Electron 폴백 포함)
+  const canUseWebBackup = items && setItems && textData && setTextData && diaryStyle && setDiaryStyle;
+
   return (
+    <>
+      {/* ✅ 백업 다이얼로그 */}
+      {showBackupDialog && canUseWebBackup && (
+        <BackupDialog
+          onClose={() => setShowBackupDialog(false)}
+          items={items}
+          textData={textData}
+          diaryStyle={diaryStyle}
+          linkDockItems={linkDockItems}
+          setItems={setItems!}
+          setTextData={setTextData!}
+          setDiaryStyle={setDiaryStyle!}
+          setLinkDockItems={setLinkDockItems || (() => {})}
+        />
+      )}
+    
     <div className="h-full flex flex-col" style={{
-      backgroundColor: 'transparent',
+      backgroundColor: 'var(--note-paper-background, #f7f5ed)',
       color: 'var(--month-tab-text-color, #764737)',
     }}>
       {/* Header */}
@@ -28,19 +79,96 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </svg>
           설정
         </h3>
-        <button
-          onClick={onClose}
-          className="w-8 h-8 rounded-full hover:bg-stone-100 flex items-center justify-center transition-colors"
-          title="닫기"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          {window.electron ? (
+            /* 다이어리 종료하기 버튼 */
+            <button
+              onClick={async () => {
+                if (confirm('다이어리를 종료하시겠습니까?')) {
+                  if (window.electron?.close) {
+                    await window.electron.close();
+                  }
+                }
+              }}
+              className="px-4 py-2 rounded-lg hover:bg-red-50 flex items-center gap-2 transition-colors border border-red-200"
+              title="다이어리 종료"
+            >
+              <span className="text-sm font-medium text-red-600">다이어리 종료하기</span>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-600" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          ) : (
+            /* 설정 패널 닫기 버튼 (웹 버전용) */
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full hover:bg-stone-100 flex items-center justify-center transition-colors"
+              title="설정 닫기"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
+        {/* 다이어리 크기 섹션 */}
+        <section className="mb-6">
+          <h4 className="text-sm font-semibold mb-3 pb-2 border-b" style={{
+            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+          }}>
+            다이어리 크기
+          </h4>
+          
+          <div className="flex flex-col gap-2">
+            <select
+              value={compactMode ? '1100' : '1400'}
+              onChange={(e) => onCompactModeChange?.(e.target.value === '1100')}
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none focus:border-blue-400 transition-colors"
+              style={{
+                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                backgroundColor: 'var(--widget-input-background, #f8fafc)',
+                color: 'inherit',
+              }}
+            >
+              <option value="1100">컴팩트 (1100px)</option>
+              <option value="1400" disabled>표준 (1400px) - 준비중</option>
+            </select>
+            <p className="text-xs opacity-70 px-1">
+              {compactMode ? '작고 간결한 크기입니다' : '1400px 모드는 현재 준비 중입니다'}
+            </p>
+          </div>
+        </section>
+
+        {/* 키링 참 테두리 섹션 */}
+        <section className="mb-6">
+          <h4 className="text-sm font-semibold mb-3 pb-2 border-b" style={{
+            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+          }}>
+            🔑 키링 참 테두리
+          </h4>
+          
+          <div className="flex flex-col gap-2">
+            <select
+              value={keyringFrame}
+              onChange={(e) => onKeyringFrameChange?.(e.target.value as KeyringFrameType)}
+              className="w-full px-3 py-2 rounded-lg border text-sm outline-none focus:border-blue-400 transition-colors"
+              style={{
+                borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+                backgroundColor: 'var(--widget-input-background, #f8fafc)',
+                color: 'inherit',
+              }}
+            >
+              <option value="rounded-square">🔲 둥근 네모</option>
+              <option value="heart">❤️ 하트</option>
+              <option value="circle">⭕ 원형</option>
+            </select>
+          </div>
+        </section>
+
         <section className="mb-6">
           <h4 className="text-sm font-semibold mb-3 pb-2 border-b" style={{
             borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
@@ -48,58 +176,89 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             내보내기 & 백업
           </h4>
           
-          <div className="flex flex-col gap-2">
-            {/* PDF 내보내기 */}
+          <div className="flex flex-col gap-1.5">
+            {/* PDF 내보내기 - 준비중 */}
             <button
-              onClick={onExportPDF}
-              className="w-full px-4 py-3 rounded-lg border text-left hover:bg-stone-50 transition-colors flex items-center gap-3"
+              disabled
+              className="w-full px-3 py-2 rounded-lg border text-left opacity-50 cursor-not-allowed transition-colors flex items-center gap-2"
               style={{
+                backgroundColor: 'var(--widget-input-background, #f8fafc)',
                 borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
               }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
               </svg>
-              <div className="flex-1">
-                <div className="font-medium">PDF로 내보내기</div>
-                <div className="text-xs opacity-70">다이어리를 PDF 파일로 저장</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">PDF 내보내기 (준비중)</div>
+                <div className="text-[10px] opacity-60">기능 개선 중입니다</div>
               </div>
             </button>
 
-            {/* 백업 */}
+            {/* ✅ 데이터 관리 버튼 - 백업/복원 통합 */}
             <button
-              onClick={onOpenBackup}
-              className="w-full px-4 py-3 rounded-lg border text-left hover:bg-stone-50 transition-colors flex items-center gap-3"
+              onClick={() => {
+                // 항상 BackupDialog 열기 (백업/복원 모두 가능)
+                if (canUseWebBackup) {
+                  setShowBackupDialog(true);
+                } else {
+                  alert('데이터 관리 기능을 사용할 수 없습니다.');
+                }
+              }}
+              className="w-full px-3 py-2 rounded-lg border text-left hover:opacity-80 transition-colors flex items-center gap-2"
               style={{
+                backgroundColor: 'var(--widget-input-background, #f8fafc)',
                 borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
               }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-purple-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
                 <path fillRule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
               </svg>
-              <div className="flex-1">
-                <div className="font-medium">백업 & 복원</div>
-                <div className="text-xs opacity-70">백업 파일 생성 및 복원</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">데이터 관리</div>
+                <div className="text-[10px] opacity-60">백업 및 복원</div>
               </div>
             </button>
 
             {/* 수동 저장 */}
             <button
               onClick={onManualSave}
-              className="w-full px-4 py-3 rounded-lg border text-left hover:bg-stone-50 transition-colors flex items-center gap-3"
+              className="w-full px-3 py-2 rounded-lg border text-left hover:opacity-80 transition-colors flex items-center gap-2"
               style={{
+                backgroundColor: 'var(--widget-input-background, #f8fafc)',
                 borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
               }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                 <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z" />
               </svg>
-              <div className="flex-1">
-                <div className="font-medium">수동 저장</div>
-                <div className="text-xs opacity-70">현재 상태를 즉시 저장</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">수동 저장</div>
+                <div className="text-[10px] opacity-60">즉시 저장</div>
               </div>
             </button>
+          </div>
+        </section>
+
+        {/* 음악 재생 안내 섹션 */}
+        <section className="mb-6">
+          <h4 className="text-sm font-semibold mb-3 pb-2 border-b" style={{
+            borderColor: 'var(--widget-border-color, var(--ui-stroke-color, rgba(148, 163, 184, 0.6)))',
+          }}>
+            🎵 음악 재생
+          </h4>
+          
+          <div className="flex flex-col gap-2 p-3 rounded-lg" style={{
+            backgroundColor: 'var(--widget-input-background, #f8fafc)',
+          }}>
+            <div className="text-xs opacity-80 leading-relaxed">
+              <div className="font-semibold mb-1">📌 YouTube 음악이 재생되지 않나요?</div>
+              <div className="ml-2">
+                • 브라우저에서 YouTube를 닫아주세요<br/>
+                • YouTube는 동시 재생을 제한합니다
+              </div>
+            </div>
           </div>
         </section>
 
@@ -113,6 +272,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         </div>
       </div>
     </div>
+    </>
   );
 };
 

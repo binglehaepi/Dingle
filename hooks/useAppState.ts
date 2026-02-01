@@ -56,6 +56,7 @@ export function useAppState() {
       uiTokens: DEFAULT_UI_TOKENS,
       dashboardUseNotePaperOverride: false,
       dashboardNotePaperBackground: undefined,
+      compactMode: true, // ✅ 기본값: 1100px (컴팩트)
     };
 
     try {

@@ -20,6 +20,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "ui:selftest": "node scripts/uiSelftest.mjs",
+    "generate:icon": "node scripts/generate-icon.js",
     "electron:compile": "tsc -p electron/tsconfig.json",
     "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:3000 && npm run electron:compile && electron .\"",
     "electron:build": "vite build && npm run electron:compile && electron-builder",
@@ -46,6 +47,7 @@
     "electron": "^28.3.3",
     "electron-builder": "^24.13.3",
     "playwright": "^1.57.0",
+    "sharp": "^0.34.5",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "wait-on": "^7.2.0"

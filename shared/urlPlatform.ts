@@ -12,6 +12,7 @@ export type PlatformId =
   | 'book'
   | 'youtube'
   | 'spotify'
+  | 'soundcloud'
   | 'tiktok'
   | 'vimeo'
   | 'fashion'
@@ -85,6 +86,11 @@ export function detectPlatform(inputUrl: string): PlatformId {
     // Spotify
     if (hostname.includes('spotify.com')) {
       return 'spotify';
+    }
+
+    // SoundCloud
+    if (hostname.includes('soundcloud.com')) {
+      return 'soundcloud';
     }
 
     // TikTok

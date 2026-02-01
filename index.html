@@ -13,11 +13,14 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- 폰트 4종: Noto Sans KR / Gmarket Sans / 경기천년바탕 / 카페24 동동 -->
+    <!-- YouTube IFrame API - Electron 환경에서 명시적 로드 -->
+    <script src="https://www.youtube.com/iframe_api" async></script>
+
+    <!-- 폰트: Noto Sans KR / Gmarket Sans / 경기천년바탕 / 카페24 동동 + Google Fonts 8개 -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Nanum+Gothic:wght@400;700&family=Nanum+Myeongjo:wght@400;700&family=Black+Han+Sans&family=Do+Hyeon&family=Jua&family=Cute+Font&family=Gamja+Flower&display=swap"
       rel="stylesheet"
     />
 
@@ -180,10 +183,31 @@
       }
 
       /* ======================================================
-         폰트 시스템 (4종)
+         폰트 시스템 (11종)
          ====================================================== */
       [data-font="noto"] {
         --app-font: "Noto Sans KR", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      }
+      [data-font="nanum-gothic"] {
+        --app-font: "Nanum Gothic", sans-serif;
+      }
+      [data-font="nanum-myeongjo"] {
+        --app-font: "Nanum Myeongjo", serif;
+      }
+      [data-font="black-han-sans"] {
+        --app-font: "Black Han Sans", sans-serif;
+      }
+      [data-font="do-hyeon"] {
+        --app-font: "Do Hyeon", sans-serif;
+      }
+      [data-font="jua"] {
+        --app-font: "Jua", sans-serif;
+      }
+      [data-font="cute-font"] {
+        --app-font: "Cute Font", cursive;
+      }
+      [data-font="gamja-flower"] {
+        --app-font: "Gamja Flower", cursive;
       }
       [data-font="gmarket"] {
         --app-font: "Gmarket Sans", sans-serif;
@@ -614,6 +638,45 @@
         animation-play-state: paused;
       }
 
+      /* ======================================================
+         별 모양 드래그 핸들 (통통한 꽃잎 버전)
+         ====================================================== */
+      
+      /* 반짝이는 애니메이션 */
+      @keyframes star-glow {
+        0%, 100% { 
+          opacity: 1; 
+        }
+        50% { 
+          opacity: 0.6; 
+        }
+      }
+
+      /* 호버 시 - 탭 활성화 색상으로 채우기 */
+      .diary-drag-handle:hover .star-path {
+        fill: var(--month-tab-bg-active, #fef3c7) !important;
+        stroke: var(--month-tab-border-color, #D4C5B9) !important;
+        stroke-width: 2 !important;
+        filter: drop-shadow(0 3px 6px rgba(212, 197, 185, 0.3)) !important;
+      }
+
+      /* 드래그 시 - 더 진한 채우기 */
+      .diary-drag-handle.dragging .star-path {
+        fill: var(--month-tab-bg-active, #fef3c7) !important;
+        stroke: var(--month-tab-border-color, #D4C5B9) !important;
+        stroke-width: 2.5 !important;
+        filter: drop-shadow(0 4px 8px rgba(212, 197, 185, 0.4)) !important;
+        opacity: 0.9 !important;
+      }
+
+      /* 반응형 - 작은 화면에서는 다이어리 안쪽으로 */
+      @media (max-width: 1300px) {
+        .diary-drag-handle {
+          right: 16px !important;
+          bottom: 16px !important;
+        }
+      }
+
       .tape-edge {
         mask-image: linear-gradient(135deg, #000 5px, transparent 0),
           linear-gradient(-135deg, #000 5px, transparent 0);
@@ -701,6 +764,61 @@
 
       .export-safe-mode .export-safe-fallback {
         opacity: 1;
+      }
+
+      /* PDF Export Mode - 확실하게 다이어리만 캡처 */
+      body[data-export-mode="true"] {
+        background: transparent !important;
+        overflow: hidden !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 1100px !important;
+        height: 820px !important;
+      }
+
+      body[data-export-mode="true"] > #root {
+        width: 1100px !important;
+        height: 820px !important;
+        overflow: hidden !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        transform: none !important;
+        display: block !important;
+        min-height: auto !important;
+      }
+
+      /* VIEWPORT CONTAINER 조정 (다이어리만 보이도록) */
+      body[data-export-mode="true"] .w-screen.flex.flex-col {
+        width: 1100px !important;
+        height: 820px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+        justify-content: flex-start !important;
+        align-items: flex-start !important;
+      }
+
+      /* 노트 영역을 viewport 전체로 확장 */
+      body[data-export-mode="true"] [data-pages-wrapper] {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 1100px !important;
+        height: 820px !important;
+        transform: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        z-index: 999999 !important;
+      }
+
+      /* 다른 모든 요소 강제 숨김 */
+      body[data-export-mode="true"] [data-settings-panel],
+      body[data-export-mode="true"] .absolute.top-8.-right-8,
+      body[data-export-mode="true"] > *:not(#root) {
+        display: none !important;
       }
 
       /* 테마 아이콘 시스템 */

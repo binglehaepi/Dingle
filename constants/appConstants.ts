@@ -17,7 +17,12 @@ export const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', '
 // 글로벌 스크랩 페이지 키
 export const GLOBAL_SCRAP_PAGE_KEY = 'GLOBAL_SCRAP_PAGE';
 
-// 📐 좌표계 통일: 저장은 항상 SPREAD(1400px) 기준
+// 📐 좌표계 통일: 저장은 항상 SPREAD 기준
+// 동적 크기 계산 함수
+export const getSpreadWidth = (compactMode?: boolean) => compactMode ? 1100 : 1400;
+export const getPageWidth = (compactMode?: boolean) => getSpreadWidth(compactMode) / 2;
+
+// 기본값 (하위 호환성)
 export const SPREAD_WIDTH = 1400;  // 2페이지 스프레드 (저장 좌표계)
 export const PAGE_WIDTH = SPREAD_WIDTH / 2;  // 700px (1페이지)
 export const DESIGN_HEIGHT = 820;  // 공통 높이

@@ -1,535 +1,263 @@
-/**
- * 백업/복원 다이얼로그
- * 
- * Phase 1: JSON 다운로드/업로드 (웹 브라우저)
- * Phase 3: Electron 파일 다이얼로그 (데스크톱)
- */
-
-import React, { useState, useEffect } from 'react';
-import { ScrapItem, LayoutTextData, DiaryStyle } from '../types';
-import {
-  exportToJSON,
-  importFromJSON,
-  restoreBackup,
-  checkLocalStorageHealth,
-  BackupData,
-  getBackupInfo,
-} from '../services/backup';
-import { migrateDiaryStyle } from '../utils/theme';
-import { STYLE_PREF_KEY } from '../constants/appConstants';
-import {
-  saveDiaryToFile,
-  loadDiaryFromFile,
-  getFileInfo,
-  listBackups,
-  restoreFromBackup,
-  createBackup,
-  BackupInfo,
-} from '../services/fileStorage';
+import React, { useState } from 'react';
+import { ScrapItem, LayoutTextData, DiaryStyle, LinkDockItem } from '../types';
+import { exportToJSON, importFromJSON, restoreBackup, getBackupInfo, checkLocalStorageHealth } from '../services/backup';
 
 interface BackupDialogProps {
-  isOpen: boolean;
   onClose: () => void;
-  
-  // 현재 앱 상태
   items: ScrapItem[];
   textData: LayoutTextData;
-  stylePref: DiaryStyle;
-  
-  // 복원 핸들러
+  diaryStyle: DiaryStyle;
+  linkDockItems: LinkDockItem[];
   setItems: React.Dispatch<React.SetStateAction<ScrapItem[]>>;
   setTextData: React.Dispatch<React.SetStateAction<LayoutTextData>>;
   setDiaryStyle: React.Dispatch<React.SetStateAction<DiaryStyle>>;
-  
-  // Toast
-  setToastMsg: React.Dispatch<React.SetStateAction<string>>;
+  setLinkDockItems: React.Dispatch<React.SetStateAction<LinkDockItem[]>>;
 }
 
 const BackupDialog: React.FC<BackupDialogProps> = ({
-  isOpen,
   onClose,
   items,
   textData,
-  stylePref,
+  diaryStyle,
+  linkDockItems,
   setItems,
   setTextData,
   setDiaryStyle,
-  setToastMsg,
+  setLinkDockItems,
 }) => {
-  const [health, setHealth] = useState(checkLocalStorageHealth());
-  const [fileInfo, setFileInfo] = useState<any>(null);
-  const [previewBackup, setPreviewBackup] = useState<BackupData | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [backupList, setBackupList] = useState<BackupInfo[]>([]);
-  const [showBackupList, setShowBackupList] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [message, setMessage] = useState('');
 
-  const isElectron = !!window.electron;
+  // 현재 저장소 상태 확인
+  const storageHealth = checkLocalStorageHealth();
 
-  useEffect(() => {
-    if (isOpen) {
-      setHealth(checkLocalStorageHealth());
+  // 백업 생성
+  const handleBackup = async () => {
+    setIsProcessing(true);
+    setMessage('');
+    
+    try {
+      await exportToJSON(items, textData, diaryStyle, linkDockItems);
       
-      // Electron: 파일 정보 및 백업 목록 조회
-      if (isElectron) {
-        getFileInfo().then(info => {
-          setFileInfo(info);
-        });
-        
-        listBackups().then(backups => {
-          setBackupList(backups);
-        });
-      }
-    }
-  }, [isOpen, isElectron]);
-
-  if (!isOpen) return null;
-
-  // ═══════════════════════════════════════════════════════
-  // 💾 내보내기 (Export)
-  // ═══════════════════════════════════════════════════════
-
-  const handleExport = async () => {
-    try {
-      setIsLoading(true);
-
-      if (isElectron) {
-        // Electron: 파일 저장 다이얼로그
-        const result = await window.electron.showSaveDialog({
-          defaultPath: `ScrapDiary_${new Date().toISOString().slice(0, 10)}.json`,
-          filters: [{ name: 'JSON Files', extensions: ['json'] }]
-        });
-
-        if (result.canceled || !result.filePath) {
-          setIsLoading(false);
-          return;
-        }
-
-        // 데이터 생성
-        const backup = {
-          version: '2.0.0',
-          appVersion: '1.0.0',
-          createdAt: Date.now(),
-          items,
-          textData,
-          stylePref,
-          itemCount: items.length,
-          totalSize: 0,
-        };
-
-        const jsonStr = JSON.stringify(backup, null, 2);
-        
-        // 파일 저장
-        const writeResult = await window.electron.writeFile(result.filePath, jsonStr);
-        
-        if (writeResult.success) {
-          setToastMsg('✅ Exported!');
-          setTimeout(() => setToastMsg(''), 2000);
-        } else {
-          throw new Error(writeResult.error);
-        }
-      } else {
-        // 웹: 브라우저 다운로드
-        await exportToJSON(items, textData, stylePref);
-        setToastMsg('✅ Downloaded!');
-        setTimeout(() => setToastMsg(''), 2000);
-      }
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10);
+      const timeStr = now.toTimeString().slice(0, 8).replace(/:/g, '');
+      const filename = `Dingle_백업_${dateStr}_${timeStr}.dingle`;
+      
+      setMessage(`✅ 백업 완료!\n파일: ${filename}\n다운로드 폴더를 확인하세요.`);
+      
+      // 3초 후 자동으로 메시지 지우기
+      setTimeout(() => {
+        setMessage('');
+      }, 3000);
+      
     } catch (error) {
-      console.error(error);
-      setToastMsg('❌ Export failed');
-      setTimeout(() => setToastMsg(''), 2000);
+      console.error('Backup error:', error);
+      setMessage('❌ 백업 실패\n\n다시 시도해주세요.');
     } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
     }
   };
 
-  // ═══════════════════════════════════════════════════════
-  // 📂 불러오기 (Import)
-  // ═══════════════════════════════════════════════════════
+  // 복원
+  const handleRestore = async () => {
+    // 경고 메시지
+    const confirmed = window.confirm(
+      '⚠️ 주의!\n\n' +
+      '복원하면 현재 데이터가 모두 사라집니다.\n\n' +
+      `현재 다이어리에는 ${storageHealth.itemCount}개의 아이템이 있습니다.\n\n` +
+      '계속하시겠습니까?'
+    );
 
-  const handleImport = async () => {
-    try {
-      setIsLoading(true);
-
-      let backup: BackupData | null = null;
-
-      if (isElectron) {
-        // Electron: 파일 열기 다이얼로그
-        const result = await window.electron.showOpenDialog({
-          filters: [{ name: 'JSON Files', extensions: ['json'] }],
-          properties: ['openFile']
-        });
-
-        if (result.canceled || result.filePaths.length === 0) {
-          setIsLoading(false);
-          return;
-        }
-
-        // 파일 읽기
-        const readResult = await window.electron.readFile(result.filePaths[0]);
-        
-        if (!readResult.success || !readResult.data) {
-          throw new Error(readResult.error);
-        }
-
-        backup = JSON.parse(readResult.data);
-      } else {
-        // 웹: 파일 업로드
-        backup = await importFromJSON();
-      }
-
-      if (backup) {
-        setPreviewBackup(backup);
-      }
-    } catch (error) {
-      console.error(error);
-      setToastMsg('❌ Import failed');
-      setTimeout(() => setToastMsg(''), 2000);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ═══════════════════════════════════════════════════════
-  // 🔄 복원 (Restore)
-  // ═══════════════════════════════════════════════════════
-
-  const handleRestore = () => {
-    if (!previewBackup) return;
-
-    if (!window.confirm('⚠️ 현재 데이터가 모두 교체됩니다.\n계속하시겠습니까?')) {
+    if (!confirmed) {
       return;
     }
 
-    try {
-      restoreBackup(previewBackup, setItems, setTextData, setDiaryStyle);
-      setToastMsg('✅ Restored!');
-      setTimeout(() => setToastMsg(''), 2000);
-      setPreviewBackup(null);
-      onClose();
-    } catch (error) {
-      console.error(error);
-      setToastMsg('❌ Restore failed');
-      setTimeout(() => setToastMsg(''), 2000);
-    }
-  };
-
-  // ═══════════════════════════════════════════════════════
-  // 💾 백업 생성 (Electron)
-  // ═══════════════════════════════════════════════════════
-
-  const handleCreateBackup = async () => {
-    if (!isElectron) return;
+    setIsProcessing(true);
+    setMessage('');
 
     try {
-      setIsLoading(true);
-      const result = await createBackup();
-
-      if (result.success) {
-        setToastMsg('✅ Backup created!');
-        setTimeout(() => setToastMsg(''), 2000);
-
-        // 백업 목록 새로고침
-        const backups = await listBackups();
-        setBackupList(backups);
-      } else {
-        setToastMsg('❌ Backup failed');
-        setTimeout(() => setToastMsg(''), 2000);
+      // 파일 선택
+      const backup = await importFromJSON();
+      
+      if (!backup) {
+        setIsProcessing(false);
+        return; // 사용자가 취소함
       }
-    } catch (error) {
-      console.error(error);
-      setToastMsg('❌ Error');
-      setTimeout(() => setToastMsg(''), 2000);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-  // ═══════════════════════════════════════════════════════
-  // 🔄 백업에서 복원 (Electron)
-  // ═══════════════════════════════════════════════════════
+      // 백업 정보 확인
+      const info = getBackupInfo(backup);
+      
+      // 최종 확인
+      const finalConfirm = window.confirm(
+        '📦 백업 정보\n\n' +
+        `생성 시각: ${info.created}\n` +
+        `아이템 수: ${info.itemCount}개\n` +
+        `크기: ${info.size}\n` +
+        `버전: ${info.version}\n\n` +
+        '이 백업으로 복원하시겠습니까?'
+      );
 
-  const handleRestoreFromBackup = async (backup: BackupInfo) => {
-    if (!isElectron) return;
-
-    if (!window.confirm(`⚠️ 이 백업으로 복원하시겠습니까?\n\n${backup.fileName}\n생성: ${backup.createdAt.toLocaleString('ko-KR')}\n아이템: ${backup.itemCount}개\n\n현재 데이터가 모두 교체됩니다.`)) {
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      const result = await restoreFromBackup(backup.filePath);
-
-      if (result.success && result.data) {
-        setItems(result.data.items);
-        setTextData(result.data.textData);
-        const migrated = migrateDiaryStyle(result.data.stylePref);
-        setDiaryStyle(migrated);
-        // 요구사항 B: 복원 직후 localStorage에도 즉시 반영(새로고침 유지)
-        localStorage.setItem(STYLE_PREF_KEY, JSON.stringify(migrated));
-
-        setToastMsg('✅ Restored from backup!');
-        setTimeout(() => setToastMsg(''), 2000);
-        setShowBackupList(false);
-        onClose();
-      } else {
-        setToastMsg('❌ Restore failed');
-        setTimeout(() => setToastMsg(''), 2000);
+      if (!finalConfirm) {
+        setIsProcessing(false);
+        return;
       }
+
+      // 복원 실행
+      await restoreBackup(backup, setItems, setTextData, setDiaryStyle, setLinkDockItems);
+
+      setMessage('✅ 복원 완료!\n\n페이지를 새로고침합니다...');
+
+      // 1초 후 새로고침
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+
     } catch (error) {
-      console.error(error);
-      setToastMsg('❌ Error');
-      setTimeout(() => setToastMsg(''), 2000);
-    } finally {
-      setIsLoading(false);
+      console.error('Restore error:', error);
+      setMessage('❌ 복원 실패\n\n' + String(error));
+      setIsProcessing(false);
     }
   };
-
-  // ═══════════════════════════════════════════════════════
-  // 🎨 UI
-  // ═══════════════════════════════════════════════════════
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200]">
-      <div className="bg-white rounded-lg p-6 w-[500px] max-h-[80vh] overflow-auto">
-        
+    <div 
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: 'var(--note-paper-background, #f7f5ed)',
+        }}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold">
-            💾 백업 & 복원
-            {isElectron && <span className="text-sm text-blue-500 ml-2">Electron</span>}
-          </h2>
+        <div 
+          className="px-6 py-4 border-b flex items-center justify-between"
+          style={{
+            borderColor: 'var(--ui-stroke-color, rgba(148, 163, 184, 0.6))',
+          }}
+        >
+          <h3 
+            className="text-xl font-bold flex items-center gap-2"
+            style={{ color: 'var(--text-color-primary, #764737)' }}
+          >
+            <span className="text-2xl">📦</span>
+            데이터 관리
+          </h3>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+            className="w-8 h-8 rounded-full hover:bg-black/5 flex items-center justify-center transition-colors"
+            disabled={isProcessing}
           >
-            ×
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
           </button>
         </div>
 
-        {/* Electron: 파일 정보 */}
-        {isElectron && fileInfo && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <h3 className="font-bold mb-2">📁 저장된 파일</h3>
-            <div className="text-sm space-y-1">
-              {fileInfo.exists ? (
-                <>
-                  <div className="flex justify-between">
-                    <span>위치:</span>
-                    <strong className="text-xs truncate ml-2">{fileInfo.path}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>마지막 저장:</span>
-                    <strong>{fileInfo.savedAt ? new Date(fileInfo.savedAt).toLocaleString('ko-KR') : 'N/A'}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>아이템 개수:</span>
-                    <strong>{fileInfo.itemCount}개</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>파일 크기:</span>
-                    <strong>{fileInfo.size}</strong>
-                  </div>
-                </>
-              ) : (
-                <p className="text-gray-600">저장된 파일 없음</p>
-              )}
+        {/* Content */}
+        <div className="p-6">
+          {/* 현재 상태 */}
+          <div 
+            className="mb-6 p-4 rounded-xl"
+            style={{
+              backgroundColor: 'var(--widget-input-background, #f8fafc)',
+              borderColor: 'var(--ui-stroke-color, rgba(148, 163, 184, 0.6))',
+              border: '1.5px solid',
+            }}
+          >
+            <h4 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: 'var(--text-color-primary, #764737)' }}>
+              <span>📊</span>
+              현재 다이어리 상태
+            </h4>
+            <div className="text-xs space-y-1" style={{ color: 'var(--text-color-primary, #764737)', opacity: 0.8 }}>
+              <div>• 아이템: {storageHealth.itemCount}개</div>
+              <div>• 크기: {(storageHealth.size / 1024).toFixed(2)} KB</div>
+              <div>• 사용률: {storageHealth.percentage}%</div>
             </div>
           </div>
-        )}
 
-        {/* 웹: localStorage 상태 */}
-        {!isElectron && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <h3 className="font-bold mb-2">📊 현재 상태</h3>
-            <div className="text-sm space-y-1">
-              <div className="flex justify-between">
-                <span>아이템 개수:</span>
-                <strong>{health.itemCount}개</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>저장소 사용:</span>
-                <strong>{(health.size / 1024).toFixed(2)} KB</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>할당량 사용률:</span>
-                <strong className={health.percentage > 80 ? 'text-red-500' : ''}>
-                  {health.percentage}%
-                </strong>
-              </div>
-            </div>
-            {health.percentage > 80 && (
-              <p className="text-xs text-red-500 mt-2">
-                ⚠️ 저장소가 부족합니다! 백업 후 일부 데이터를 삭제하세요.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* 내보내기 */}
-        <div className="mb-6">
-          <h3 className="font-bold mb-2">📤 내보내기</h3>
-          <p className="text-sm text-gray-600 mb-3">
-            {isElectron 
-              ? '다이어리를 JSON 파일로 저장합니다.'
-              : '현재 데이터를 JSON 파일로 다운로드합니다.'}
-          </p>
+          {/* 백업 버튼 */}
           <button
-            onClick={handleExport}
-            disabled={isLoading || items.length === 0}
-            className="w-full bg-[var(--ui-primary-bg)] text-[var(--ui-primary-text)] py-3 rounded-lg hover:bg-[var(--ui-primary-hover)] disabled:bg-gray-300 disabled:cursor-not-allowed"
+            onClick={handleBackup}
+            disabled={isProcessing}
+            className="w-full mb-3 px-4 py-4 rounded-xl text-left hover:opacity-80 transition-all flex items-center gap-3"
+            style={{
+              backgroundColor: 'var(--widget-surface-background, #ffffff)',
+              borderColor: 'var(--ui-stroke-color, rgba(148, 163, 184, 0.6))',
+              border: '1.5px solid',
+              opacity: isProcessing ? 0.5 : 1,
+              cursor: isProcessing ? 'not-allowed' : 'pointer',
+            }}
           >
-            {isLoading ? '⏳ 내보내는 중...' : '💾 JSON 파일로 내보내기'}
-          </button>
-        </div>
-
-        {/* 백업 히스토리 (Electron only) */}
-        {isElectron && (
-          <>
-            <div className="border-t my-6"></div>
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-bold">📚 백업 히스토리</h3>
-                <button
-                  onClick={() => setShowBackupList(!showBackupList)}
-                  className="text-sm text-blue-500 hover:text-blue-700"
-                >
-                  {showBackupList ? '닫기' : `${backupList.length}개 보기`}
-                </button>
+            <span className="text-3xl">💾</span>
+            <div className="flex-1">
+              <div className="text-base font-semibold" style={{ color: 'var(--text-color-primary, #764737)' }}>
+                백업하기
               </div>
-
-              {showBackupList && (
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {backupList.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">백업이 없습니다</p>
-                  ) : (
-                    backupList.map((backup) => (
-                      <div
-                        key={backup.filePath}
-                        className="bg-gray-50 border border-gray-200 rounded-lg p-3"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">
-                              {backup.fileName}
-                            </p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {backup.createdAt.toLocaleString('ko-KR')}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {backup.itemCount}개 아이템 · {backup.size}
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => handleRestoreFromBackup(backup)}
-                            disabled={isLoading}
-                            className="px-3 py-1 text-xs bg-[var(--ui-success-bg)] text-[var(--ui-success-text)] rounded hover:bg-[var(--ui-success-hover)] disabled:bg-gray-300 whitespace-nowrap"
-                          >
-                            복원
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              <button
-                onClick={handleCreateBackup}
-                disabled={isLoading}
-                className="w-full mt-3 bg-[var(--ui-primary-bg)] text-[var(--ui-primary-text)] py-2 rounded-lg hover:bg-[var(--ui-primary-hover)] disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                {isLoading ? '⏳ 생성 중...' : '➕ 새 백업 생성'}
-              </button>
+              <div className="text-xs mt-1" style={{ color: 'var(--text-color-primary, #764737)', opacity: 0.7 }}>
+                다이어리를 .dingle 파일로 백업
+              </div>
             </div>
-          </>
-        )}
+          </button>
 
-        <div className="border-t my-6"></div>
-
-        {/* 불러오기 */}
-        <div className="mb-6">
-          <h3 className="font-bold mb-2">📥 불러오기</h3>
-          <p className="text-sm text-gray-600 mb-3">
-            백업 파일을 선택하세요.
-          </p>
+          {/* 복원 버튼 */}
           <button
-            onClick={handleImport}
-            disabled={isLoading}
-            className="w-full bg-[var(--ui-success-bg)] text-[var(--ui-success-text)] py-3 rounded-lg hover:bg-[var(--ui-success-hover)] disabled:bg-gray-300 disabled:cursor-not-allowed"
+            onClick={handleRestore}
+            disabled={isProcessing}
+            className="w-full mb-4 px-4 py-4 rounded-xl text-left hover:opacity-80 transition-all flex items-center gap-3"
+            style={{
+              backgroundColor: 'var(--widget-surface-background, #ffffff)',
+              borderColor: 'var(--ui-stroke-color, rgba(148, 163, 184, 0.6))',
+              border: '1.5px solid',
+              opacity: isProcessing ? 0.5 : 1,
+              cursor: isProcessing ? 'not-allowed' : 'pointer',
+            }}
           >
-            {isLoading ? '⏳ 파일 읽는 중...' : '📂 JSON 파일 선택'}
+            <span className="text-3xl">📥</span>
+            <div className="flex-1">
+              <div className="text-base font-semibold" style={{ color: 'var(--text-color-primary, #764737)' }}>
+                복원하기
+              </div>
+              <div className="text-xs mt-1" style={{ color: 'var(--text-color-primary, #764737)', opacity: 0.7 }}>
+                백업 파일에서 다이어리 복원
+              </div>
+            </div>
           </button>
-        </div>
 
-        {/* 미리보기 */}
-        {previewBackup && (
-          <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4 mb-4">
-            <h3 className="font-bold mb-2">🔍 백업 미리보기</h3>
-            <div className="text-sm space-y-1 mb-4">
-              <div className="flex justify-between">
-                <span>생성 일시:</span>
-                <strong>{getBackupInfo(previewBackup).created}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>아이템 개수:</span>
-                <strong>{getBackupInfo(previewBackup).itemCount}개</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>파일 크기:</span>
-                <strong>{getBackupInfo(previewBackup).size}</strong>
-              </div>
-              <div className="flex justify-between">
-                <span>버전:</span>
-                <strong>{getBackupInfo(previewBackup).version}</strong>
-              </div>
+          {/* 메시지 영역 */}
+          {message && (
+            <div 
+              className="p-4 rounded-xl whitespace-pre-line text-sm"
+              style={{
+                backgroundColor: message.startsWith('✅') 
+                  ? 'rgba(34, 197, 94, 0.1)' 
+                  : 'rgba(239, 68, 68, 0.1)',
+                borderColor: message.startsWith('✅')
+                  ? 'rgba(34, 197, 94, 0.3)'
+                  : 'rgba(239, 68, 68, 0.3)',
+                border: '1px solid',
+                color: 'var(--text-color-primary, #764737)',
+              }}
+            >
+              {message}
             </div>
+          )}
 
-            <div className="flex gap-2">
-              <button
-                onClick={handleRestore}
-                className="flex-1 bg-[var(--ui-danger-bg)] text-[var(--ui-danger-text)] py-2 rounded hover:bg-[var(--ui-danger-hover)]"
-              >
-                ⚠️ 복원 (현재 데이터 교체)
-              </button>
-              <button
-                onClick={() => setPreviewBackup(null)}
-                className="flex-1 bg-gray-300 py-2 rounded hover:bg-gray-400"
-              >
-                취소
-              </button>
-            </div>
+          {/* 안내 */}
+          <div 
+            className="mt-4 p-3 rounded-lg text-xs"
+            style={{
+              backgroundColor: 'var(--widget-input-background, #f8fafc)',
+              color: 'var(--text-color-primary, #764737)',
+              opacity: 0.7,
+            }}
+          >
+            💡 백업 파일(.dingle)은 다운로드 폴더에 저장됩니다. 안전한 곳에 보관하세요.
           </div>
-        )}
-
-        {/* 안내 */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs text-gray-600">
-          <h4 className="font-bold mb-2">💡 {isElectron ? 'Electron 모드' : '웹 모드'}</h4>
-          <ul className="space-y-1 list-disc list-inside">
-            {isElectron ? (
-              <>
-                <li>데이터는 자동으로 파일에 저장됩니다 (5초 디바운스)</li>
-                <li>파일 위치: Documents/ScrapDiary/current.json</li>
-                <li>내보내기로 추가 백업 파일을 생성할 수 있습니다</li>
-                <li>브라우저 데이터 삭제와 무관하게 안전하게 보관됩니다</li>
-              </>
-            ) : (
-              <>
-                <li>중요한 작업 전후에 백업하세요</li>
-                <li>정기적으로 백업 파일을 안전한 곳에 보관하세요</li>
-                <li>브라우저 데이터 삭제 시 모든 데이터가 사라집니다</li>
-                <li>여러 기기에서 사용하려면 백업 파일을 공유하세요</li>
-              </>
-            )}
-          </ul>
         </div>
-
-        {/* Close */}
-        <button
-          onClick={onClose}
-          className="w-full mt-4 bg-gray-200 py-2 rounded hover:bg-gray-300"
-        >
-          닫기
-        </button>
       </div>
     </div>
   );

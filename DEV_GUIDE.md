@@ -52,3 +52,5 @@ git push origin v1.3.0
 - `electron:dev` 모드는 개발용이므로 최종 확인은 빌드 후 진행
 - 핫 리로드가 안 될 경우 Electron 재시작
 
+
+

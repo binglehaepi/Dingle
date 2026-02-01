@@ -8,7 +8,7 @@
  * - 메뉴 바 설정
  */
 
-import { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, screen } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, globalShortcut, screen, Tray, Menu, nativeImage } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import fs from 'fs/promises';
@@ -66,7 +66,8 @@ let overlayUiReadyTimer: NodeJS.Timeout | null = null;
 let overlayUiReady = false;
 let overlayRendererAliveSeen = false;
 let displayMode: DisplayMode = 'background';
-let currentDiaryId: string | null = null; // 현재 overlay에서 열린 다이어리 ID
+let currentDiaryId: string = 'default'; // 단일 다이어리 ID (고정)
+let tray: Tray | null = null; // 시스템 트레이
 
 async function setDisplayModeInternal(nextMode: DisplayMode) {
   const next: DisplayMode = nextMode === 'mini' ? 'mini' : 'background';
@@ -304,6 +305,107 @@ function forceCleanupAllWindows(reason: string) {
 }
 
 // ═══════════════════════════════════════════════════════
+// 🔔 시스템 트레이
+// ═══════════════════════════════════════════════════════
+
+function createTray() {
+  if (tray) {
+    return; // 이미 생성됨
+  }
+
+  try {
+    // 트레이 아이콘 경로 (개발/프로덕션 모두 지원)
+    const iconPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'icon.png')
+      : path.join(__dirname, '../build/icon.png');
+
+    // 아이콘 파일이 없으면 기본 아이콘 사용
+    let icon: Electron.NativeImage;
+    if (fsSync.existsSync(iconPath)) {
+      icon = nativeImage.createFromPath(iconPath);
+    } else {
+      // 기본 아이콘 (작은 빈 이미지)
+      icon = nativeImage.createEmpty();
+    }
+
+    tray = new Tray(icon);
+    tray.setToolTip('Dingle - 디지털 스크랩 다이어리');
+
+    // 트레이 아이콘 클릭 → Overlay 토글
+    tray.on('click', () => {
+      toggleOverlayVisibility();
+    });
+
+    // 컨텍스트 메뉴
+    const contextMenu = Menu.buildFromTemplate([
+      {
+        label: '다이어리 표시',
+        click: () => {
+          showOverlay();
+        }
+      },
+      {
+        label: '다이어리 숨기기',
+        click: () => {
+          hideOverlay();
+        }
+      },
+      { type: 'separator' },
+      {
+        label: '종료',
+        click: () => {
+          isQuitting = true;
+          app.quit();
+        }
+      }
+    ]);
+
+    tray.setContextMenu(contextMenu);
+
+    console.log('[tray] System tray created');
+  } catch (error) {
+    console.error('[tray] Failed to create tray:', error);
+  }
+}
+
+function toggleOverlayVisibility() {
+  if (!overlayWin || overlayWin.isDestroyed()) {
+    console.log('[tray] Overlay window not available');
+    return;
+  }
+
+  if (overlayWin.isVisible()) {
+    overlayWin.hide();
+    console.log('[tray] Overlay hidden');
+  } else {
+    overlayWin.show();
+    overlayWin.focus();
+    console.log('[tray] Overlay shown');
+  }
+}
+
+function showOverlay() {
+  if (!overlayWin || overlayWin.isDestroyed()) {
+    console.log('[tray] Overlay window not available');
+    return;
+  }
+
+  overlayWin.show();
+  overlayWin.focus();
+  console.log('[tray] Overlay shown');
+}
+
+function hideOverlay() {
+  if (!overlayWin || overlayWin.isDestroyed()) {
+    console.log('[tray] Overlay window not available');
+    return;
+  }
+
+  overlayWin.hide();
+  console.log('[tray] Overlay hidden');
+}
+
+// ═══════════════════════════════════════════════════════
 // 🔮 OhaAsa Horoscope (official)
 // ═══════════════════════════════════════════════════════
 
@@ -342,6 +444,7 @@ const OHAASA_SIGN_TO_ST: Record<OhaasaSignId, string> = {
 
 const ohaasaCacheByDay = new Map<string, any>(); // key: onair_date (YYYYMMDD) -> raw json object
 const ohaasaResultCache = new Map<string, any>(); // key: `${onair_date}:${sign}` -> response
+const ohaasaLuckyColorCache = new Map<string, Map<string, string>>(); // key: onair_date
 
 function yyyymmddToIso(d: string): string {
   if (!/^\d{8}$/.test(d)) return d;
@@ -354,7 +457,64 @@ async function fetchOhaasaJson(): Promise<any> {
   return await res.json();
 }
 
+// HTML 페이지에서 행운 컬러 크롤링
+async function fetchOhaasaLuckyColors(): Promise<Map<string, string>> {
+  try {
+    const res = await fetch(OHAASA_SOURCE_URL, {
+      headers: { 'User-Agent': 'DigitalScrapDiary/1.0' } as any
+    });
+    if (!res.ok) throw new Error(`OhaAsa HTML fetch failed: ${res.status}`);
+    
+    const html = await res.text();
+    const luckyColors = new Map<string, string>();
+    
+    // HTML 파싱: 각 별자리별 행운 컬러 추출
+    // 예: <div class="lucky_color">ラッキーカラー：赤</div>
+    const regex = /ラッキーカラー[：:]\s*([^\s<]+)/gi;
+    let match;
+    let signIndex = 1; // 01부터 12까지
+    
+    while ((match = regex.exec(html)) !== null && signIndex <= 12) {
+      const jaColor = match[1].trim();
+      const st = String(signIndex).padStart(2, '0');
+      luckyColors.set(st, jaColor);
+      signIndex++;
+    }
+    
+    return luckyColors;
+  } catch (error) {
+    console.error('[ohaasa] Failed to fetch lucky colors:', error);
+    return new Map(); // 실패 시 빈 맵 반환
+  }
+}
+
+// 일본어 컬러명 → 한국어 번역
+const COLOR_TRANSLATIONS: Record<string, string> = {
+  '赤': '빨강',
+  '青': '파랑',
+  '黄色': '노랑',
+  '緑': '초록',
+  '白': '흰색',
+  '黒': '검정',
+  'ピンク': '분홍',
+  'オレンジ': '주황',
+  '紫': '보라',
+  '茶色': '갈색',
+  '金': '금색',
+  '銀': '은색',
+  'グレー': '회색',
+  'ベージュ': '베이지',
+  '水色': '하늘색',
+  'レモンイエロー': '레몬색',
+  'ラベンダー': '라벤더',
+};
+
+function translateColorJaToKo(jaColor: string): string {
+  return COLOR_TRANSLATIONS[jaColor] || jaColor;
+}
+
 async function getOhaasaHoroscope(params: { date: string; sign: OhaasaSignId }) {
+  console.log('🔮 getOhaasaHoroscope 호출 - v2.0 (행운 컬러 크롤링)');
   // date is for cache key only (official json has its own onair_date)
   const raw = await fetchOhaasaJson();
   const entry = Array.isArray(raw) ? raw[0] : raw;
@@ -363,6 +523,12 @@ async function getOhaasaHoroscope(params: { date: string; sign: OhaasaSignId }) 
 
   // cache raw by day
   if (!ohaasaCacheByDay.has(onair)) ohaasaCacheByDay.set(onair, entry);
+
+  // 행운 컬러 가져오기 (날짜별로 한 번만)
+  if (!ohaasaLuckyColorCache.has(onair)) {
+    const colors = await fetchOhaasaLuckyColors();
+    ohaasaLuckyColorCache.set(onair, colors);
+  }
 
   const cacheKey = `${onair}:${params.sign}`;
   const cached = ohaasaResultCache.get(cacheKey);
@@ -374,11 +540,18 @@ async function getOhaasaHoroscope(params: { date: string; sign: OhaasaSignId }) 
   const hit = list.find((x) => String(x?.horoscope_st) === st);
   if (!hit) throw new Error(`OhaAsa sign not found: ${params.sign}`);
 
+  // 행운 컬러 가져오기
+  const luckyColors = ohaasaLuckyColorCache.get(onair) || new Map();
+  const jaColor = luckyColors.get(st);
+  const koColor = jaColor ? translateColorJaToKo(jaColor) : undefined;
+
   const result = {
     date: yyyymmddToIso(onair),
     sign: params.sign,
     rank: Number(hit?.ranking_no),
     textJa: typeof hit?.horoscope_text === 'string' ? hit.horoscope_text : undefined,
+    luckyColor: koColor,
+    luckyColorJa: jaColor,
     sourceUrl: OHAASA_SOURCE_URL,
   };
   ohaasaResultCache.set(cacheKey, result);
@@ -419,7 +592,14 @@ function getWindowOptions(mode: WindowMode): Electron.BrowserWindowConstructorOp
     nodeIntegration: false, // ✅ 보안: Node.js API 비활성화
     sandbox: false, // preload에서 Node.js 필요
     webSecurity: false, // ✅ SNS embed 스크립트 및 외부 리소스 허용 (Twitter, Instagram 등)
+    allowRunningInsecureContent: true, // ✅ YouTube iframe 재생을 위한 혼합 콘텐츠 허용
+    experimentalFeatures: true, // ✅ 실험적 기능 활성화 (YouTube 호환성)
   };
+
+  // 아이콘 경로 설정
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(__dirname, '../build/icon.png');
 
   // preload 적용 여부를 로그로 확정(overlay에서 hasOverlayAlive=false 원인 분리)
   try {
@@ -434,34 +614,36 @@ function getWindowOptions(mode: WindowMode): Electron.BrowserWindowConstructorOp
       height: OVERLAY_DEFAULT_H,
       minWidth: 800,
       minHeight: 600,
-      resizable: true,
+      resizable: false,
       // Windows frameless 리사이즈 보강
-      thickFrame: true,
+      thickFrame: false,
       maximizable: false,
       transparent: true,
       frame: false,
       backgroundColor: '#00000000',
       autoHideMenuBar: true,
       hasShadow: false,
-      skipTaskbar: true,
+      skipTaskbar: false,
       alwaysOnTop: overlayAlwaysOnTop,
       webPreferences: commonWebPreferences,
       show: false,
+      icon: iconPath,
     };
   }
 
   // app 모드: 서재 스타일 (컴팩트 + frameless)
   return {
-    width: 1200,
-    height: 700, // ✅ 800 → 700 (세로 길이 감소)
-    minWidth: 900,
-    minHeight: 500, // ✅ 600 → 500 (최소 높이도 감소)
+    width: 1800,
+    height: 800,
+    minWidth: 1700,
+    minHeight: 700,
     resizable: true,
     webPreferences: commonWebPreferences,
     frame: false, // ✅ 타이틀바/메뉴바 완전 제거
     backgroundColor: '#f9f7f4', // 따뜻한 베이지
     show: false,
     autoHideMenuBar: true,
+    icon: iconPath,
   };
 }
 
@@ -501,6 +683,37 @@ async function createWindow(mode: WindowMode, opts?: { overlayGen?: number }) {
   modeByWebContentsId.set(wcId, mode);
   const localOverlayGen = mode === 'overlay' ? (opts?.overlayGen ?? overlayGen) : null;
 
+  // 🔧 개발 모드에서 캐시 완전 비활성화 (HMR 반영 문제 해결)
+  if (!app.isPackaged) {
+    console.log('[dev] isPackaged:', app.isPackaged, 'mode:', mode, '- attempting cache clear...');
+    try {
+      win.webContents.session.clearCache().then(() => {
+        console.log('[dev] ✅ Cache cleared for', mode, 'window');
+      }).catch((err) => {
+        console.warn('[dev] ❌ Failed to clear cache:', err);
+      });
+      win.webContents.session.clearStorageData({
+        storages: ['filesystem', 'indexdb', 'localstorage', 
+                   'shadercache', 'websql', 'serviceworkers', 'cachestorage']
+      }).then(() => {
+        console.log('[dev] ✅ Storage cleared for', mode, 'window');
+      }).catch((err) => {
+        console.warn('[dev] ❌ Failed to clear storage:', err);
+      });
+    } catch (err) {
+      console.warn('[dev] ❌ Exception during cache clear:', err);
+    }
+  }
+
+  // ✅ YouTube iframe 재생을 위한 User Agent 설정
+  win.webContents.session.webRequest.onBeforeSendHeaders(
+    { urls: ['*://www.youtube.com/*', '*://youtube.com/*', '*://*.youtube.com/*'] },
+    (details, callback) => {
+      details.requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      callback({ requestHeaders: details.requestHeaders });
+    }
+  );
+
   if (mode === 'overlay') {
     // overlay는 생성 시점부터 “현재 overlay 인스턴스” 정보를 세팅 (레이스 가드용)
     if (localOverlayGen != null) {
@@ -517,8 +730,8 @@ async function createWindow(mode: WindowMode, opts?: { overlayGen?: number }) {
     // 기본 잠금 상태는 OFF(이동/조작 가능). click-through는 locked=true일 때만 적용.
     try { win.setIgnoreMouseEvents(false); } catch { /* ignore */ }
     try { win.setFocusable(true); } catch { /* ignore */ }
-    // 리사이즈 보험(환경/버전에 따라 옵션이 무시되는 케이스 방지)
-    try { win.setResizable(true); } catch { /* ignore */ }
+    // 리사이즈 비활성화
+    try { win.setResizable(false); } catch { /* ignore */ }
     // ✅ 시작 크기 보험: 항상 동일한 시작 크기로 강제(리사이즈는 가능)
     try { win.setSize(OVERLAY_DEFAULT_W, OVERLAY_DEFAULT_H, false); } catch { /* ignore */ }
     // ✅ aspectRatio 제거: 자유로운 크기 조절 허용
@@ -591,7 +804,10 @@ async function createWindow(mode: WindowMode, opts?: { overlayGen?: number }) {
         // ignore
       }
       // 필요 시 detach devtools로 overlay 콘솔/에러를 직접 확인 가능
-      try { win.webContents.openDevTools({ mode: 'detach' }); } catch { /* ignore */ }
+      // 개발 환경에서만 자동으로 DevTools 열기
+      if (!app.isPackaged) {
+        try { win.webContents.openDevTools({ mode: 'detach' }); } catch { /* ignore */ }
+      }
     }
   }
 
@@ -688,8 +904,8 @@ async function createWindow(mode: WindowMode, opts?: { overlayGen?: number }) {
     if (mode === 'overlay') {
       if (localOverlayGen != null && !isCurrentOverlayWin(win, localOverlayGen)) return;
       if (win.isDestroyed()) return;
-      // skipTaskbar 보강(옵션이 무시되는 케이스 대비)
-      try { win.setSkipTaskbar(true); } catch { /* ignore */ }
+      // skipTaskbar 보강 제거 - 작업 표시줄에 표시하기 위해
+      // try { win.setSkipTaskbar(true); } catch { /* ignore */ }
     }
   });
 
@@ -726,8 +942,8 @@ async function createWindow(mode: WindowMode, opts?: { overlayGen?: number }) {
       console.log('[window] overlay menu hide failed', e);
     }
 
-    // taskbar 최소 존재감(옵션+메서드 2중)
-    try { win.setSkipTaskbar(true); } catch { /* ignore */ }
+    // taskbar 표시 허용
+    // try { win.setSkipTaskbar(true); } catch { /* ignore */ }
 
     // alwaysOnTop: 체감되게 level 지정
     try { win.setAlwaysOnTop(overlayAlwaysOnTop, 'screen-saver'); } catch { win.setAlwaysOnTop(overlayAlwaysOnTop); }
@@ -790,51 +1006,46 @@ async function createWindow(mode: WindowMode, opts?: { overlayGen?: number }) {
 async function migrateExistingDiary() {
   try {
     const oldPath = path.join(getDiaryDir(), 'current.json');
-    const metadataPath = path.join(getDiaryDir(), 'metadata.json');
+    const newPath = path.join(getDiaryDir(), 'diary.json');
     
-    // metadata가 이미 있으면 마이그레이션 불필요
-    const metadataExists = await fs.access(metadataPath).then(() => true).catch(() => false);
-    if (metadataExists) {
-      console.log('[migration] Metadata already exists, skipping');
+    // 이미 diary.json이 있으면 스킵
+    const newExists = await fs.access(newPath).then(() => true).catch(() => false);
+    if (newExists) {
+      console.log('[migration] diary.json already exists');
       return;
     }
-
-    // current.json이 있는지 확인
+    
+    // diary-default.json 확인 (이전 마이그레이션 버전)
+    const oldDefaultPath = path.join(getDiaryDir(), 'diary-default.json');
+    const oldDefaultExists = await fs.access(oldDefaultPath).then(() => true).catch(() => false);
+    
+    if (oldDefaultExists) {
+      console.log('[migration] Migrating from diary-default.json...');
+      const oldData = await fs.readFile(oldDefaultPath, 'utf-8');
+      await fs.writeFile(newPath, oldData, 'utf-8');
+      console.log('[migration] ✅ Migration complete! Created diary.json from diary-default.json');
+      return;
+    }
+    
+    // current.json 확인 (구버전)
     const oldExists = await fs.access(oldPath).then(() => true).catch(() => false);
-    if (!oldExists) {
-      console.log('[migration] No existing diary to migrate');
+    if (oldExists) {
+      console.log('[migration] Migrating from current.json...');
+      const oldData = await fs.readFile(oldPath, 'utf-8');
+      await fs.writeFile(newPath, oldData, 'utf-8');
+      
+      // current.json은 백업으로 이름 변경
+      const backupPath = path.join(getDiaryDir(), 'current.json.backup');
+      await fs.rename(oldPath, backupPath).catch(() => {});
+      
+      console.log('[migration] ✅ Migration complete! Created diary.json from current.json');
       return;
     }
-
-    console.log('[migration] Migrating existing diary...');
-
-    // 기존 파일을 diary-default.json으로 복사
-    const defaultId = 'default';
-    const newPath = path.join(getDiaryDir(), `diary-${defaultId}.json`);
     
-    const oldData = await fs.readFile(oldPath, 'utf-8');
-    await fs.writeFile(newPath, oldData, 'utf-8');
-
-    // metadata 생성
-    const metadata = {
-      diaries: [{
-        id: defaultId,
-        name: '내 다이어리',
-        created: new Date().toISOString(),
-        modified: new Date().toISOString(),
-        color: '#ff6b6b',
-      }]
-    };
-    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
-
-    console.log('[migration] ✅ Migration complete! Created diary-default.json');
+    console.log('[migration] No old data to migrate');
     
-    // current.json은 백업으로 이름 변경
-    const backupPath = path.join(getDiaryDir(), 'current.json.backup');
-    await fs.rename(oldPath, backupPath).catch(() => {});
-    console.log('[migration] ✅ Backed up current.json');
   } catch (error) {
-    console.error('[migration] ❌ Migration failed:', error);
+    console.error('[migration] Migration failed:', error);
   }
 }
 
@@ -989,7 +1200,25 @@ if (gotLock) app.whenReady().then(async () => {
     console.error('[CSP] Failed to set CSP:', cspError);
   }
 
-  appWin = await createWindow('app');
+  // ✅ 단일 다이어리 모드: 바로 overlay 생성
+  console.log('[app] Starting in single-diary mode (no library window)');
+  
+  // overlay 생성
+  displayMode = 'mini';
+  overlayLocked = false;
+  overlayAwaitingRendererAlive = true;
+  overlayRendererAliveSeen = false;
+  overlayUiReady = false;
+  clearOverlayUiReadyTimer();
+  overlayGen += 1;
+  const localGen = overlayGen;
+  overlayWin = await createWindow('overlay', { overlayGen: localGen });
+  overlayWinId = overlayWin.id;
+  overlayWcId = overlayWin.webContents.id;
+  console.log('[overlay] Single diary mode started', { winId: overlayWinId, wcId: overlayWcId, diaryId: currentDiaryId });
+
+  // 🔔 시스템 트레이 생성
+  createTray();
 
   // 🔄 자동 업데이트 설정 및 시작
   setupAutoUpdater();
@@ -1250,6 +1479,14 @@ ipcMain.handle('window:setClickThrough', async (_e, enabled: boolean) => {
   return { success: true };
 });
 
+// 투명 영역 클릭 관통 (다이어리 영역은 클릭 가능)
+ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    win.setIgnoreMouseEvents(ignore, options);
+  }
+});
+
 ipcMain.handle('window:focusAppMode', async () => {
   if (appWin && !appWin.isDestroyed()) {
     appWin.show();
@@ -1399,11 +1636,18 @@ ipcMain.handle('fs:listDirectory', async (_event, dirPath: string) => {
 // ipcMain.handle('export:png', async () => { ... });
 
 ipcMain.handle('export:pdf', async () => {
-  if (!appWin) return { success: false, error: 'No window' };
+  // overlayWin 사용 (사용자가 실제로 보는 다이어리 편집 화면)
+  if (!overlayWin || overlayWin.isDestroyed()) {
+    return { success: false, error: 'No overlay window available' };
+  }
 
   try {
-    // 저장 다이얼로그
-    const { filePath, canceled } = await dialog.showSaveDialog(appWin, {
+    // 1. 현재 윈도우 크기 저장
+    const originalBounds = overlayWin.getBounds();
+    console.log('[PDF Export] Original bounds:', originalBounds);
+    
+    // 2. 저장 다이얼로그
+    const { filePath, canceled } = await dialog.showSaveDialog(overlayWin, {
       defaultPath: path.join(getDiaryDir(), `diary-${Date.now()}.pdf`),
       filters: [{ name: 'PDF Document', extensions: ['pdf'] }],
     });
@@ -1412,14 +1656,30 @@ ipcMain.handle('export:pdf', async () => {
       return { success: false, canceled: true };
     }
 
-    // PDF 생성
-    const pdfData = await appWin.webContents.printToPDF({
-      pageSize: 'A4',
-      landscape: true,
+    // 3. 윈도우 크기를 노트 크기(1100×820)로 변경
+    overlayWin.setContentSize(1100, 820);
+    console.log('[PDF Export] Resized to 1100x820');
+    
+    // 4. 렌더링 대기 (크기 변경 반영)
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // 5. PDF 생성 - 1100px × 820px 노트 영역만 내보내기
+    // 픽셀을 마이크론(microns)으로 변환 (1px ≈ 264.583 microns at 96 DPI)
+    const pdfData = await overlayWin.webContents.printToPDF({
+      pageSize: {
+        width: 1100 * 264.583, // 1100px in microns
+        height: 820 * 264.583,  // 820px in microns
+      },
+      landscape: false,
       printBackground: true,
       margins: { top: 0, bottom: 0, left: 0, right: 0 },
     });
 
+    // 6. 원래 크기로 복원
+    overlayWin.setBounds(originalBounds);
+    console.log('[PDF Export] Restored original size');
+
+    // 7. 파일 저장
     await fs.writeFile(filePath, pdfData);
 
     return { success: true, filePath };
@@ -1434,17 +1694,26 @@ ipcMain.handle('export:pdf', async () => {
 // ═══════════════════════════════════════════════════════
 
 ipcMain.handle('diary:list', async () => {
+  // 단일 다이어리 모드: 항상 하나의 다이어리만 반환
   try {
-    const metadataPath = path.join(getDiaryDir(), 'metadata.json');
-    const exists = await fs.access(metadataPath).then(() => true).catch(() => false);
+    const diaryPath = path.join(getDiaryDir(), 'diary.json');
+    const exists = await fs.access(diaryPath).then(() => true).catch(() => false);
     
     if (!exists) {
       return { success: true, diaries: [] };
     }
 
-    const data = await fs.readFile(metadataPath, 'utf-8');
-    const metadata = JSON.parse(data);
-    return { success: true, diaries: metadata.diaries || [] };
+    // 단일 다이어리 정보 반환
+    const singleDiary = {
+      id: 'default',
+      name: '나의 다이어리',
+      created: new Date().toISOString(),
+      modified: new Date().toISOString(),
+      color: '#ffc9d4',
+      coverPattern: 'solid',
+    };
+    
+    return { success: true, diaries: [singleDiary] };
   } catch (error) {
     console.error('diary:list failed:', error);
     return { success: false, error: String(error), diaries: [] };
@@ -1452,115 +1721,128 @@ ipcMain.handle('diary:list', async () => {
 });
 
 ipcMain.handle('diary:create', async (_event, name: string, color: string, coverPattern?: string) => {
-  try {
-    console.log('[diary:create] Starting...', { name, color, coverPattern });
-    
-    const timestamp = Date.now();
-    const diaryId = `${timestamp}`;
-    
-    // 디렉토리 확인 및 생성
-    const diaryDir = getDiaryDir();
-    console.log('[diary:create] Diary directory:', diaryDir);
-    
-    try {
-      await fs.access(diaryDir);
-    } catch {
-      console.log('[diary:create] Creating diary directory...');
-      await fs.mkdir(diaryDir, { recursive: true });
-    }
-    
-    // metadata 로드
-    const metadataPath = path.join(diaryDir, 'metadata.json');
-    console.log('[diary:create] Metadata path:', metadataPath);
-    
-    let metadata: any = { diaries: [] };
-    
-    const exists = await fs.access(metadataPath).then(() => true).catch(() => false);
-    if (exists) {
-      console.log('[diary:create] Loading existing metadata...');
-      const data = await fs.readFile(metadataPath, 'utf-8');
-      metadata = JSON.parse(data);
-    } else {
-      console.log('[diary:create] No existing metadata, will create new');
-    }
-
-    // 새 다이어리 추가
-    const newDiary = {
-      id: diaryId,
-      name,
-      color,
-      created: new Date().toISOString(),
-      modified: new Date().toISOString(),
-      coverPattern: coverPattern || 'solid',
-      keyring: '🔑', // 기본 키링
-    };
-    metadata.diaries.push(newDiary);
-    console.log('[diary:create] New diary added to metadata:', newDiary);
-
-    // metadata 저장
-    console.log('[diary:create] Saving metadata...');
-    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
-
-    // 빈 다이어리 파일 생성
-    const diaryPath = path.join(diaryDir, `diary-${diaryId}.json`);
-    console.log('[diary:create] Creating diary file:', diaryPath);
-    
-    const emptyData = {
-      version: '2.0.0',
-      appVersion: '1.0.0',
-      savedAt: timestamp,
-      items: [],
-      textData: {},
-      stylePref: {
-        coverColor: color,
-        coverPattern: 'quilt',
-        keyring: '🔑',
-        backgroundImage: '',
-      },
-      linkDockItems: [],
-    };
-    await fs.writeFile(diaryPath, JSON.stringify(emptyData, null, 2), 'utf-8');
-
-    console.log('[diary:create] ✅ Success! Created diary:', diaryId, name);
-    return { success: true, diaryId };
-  } catch (error) {
-    console.error('[diary:create] ❌ Failed:', error);
-    return { success: false, error: String(error) };
-  }
+  // 단일 다이어리 모드: 생성 불가 (이미 하나만 존재)
+  console.log('[diary:create] Ignored - single diary mode');
+  return { success: false, error: 'Single diary mode - creation not allowed' };
 });
 
 ipcMain.handle('diary:delete', async (_event, diaryId: string) => {
+  // 단일 다이어리 모드: 삭제 불가
+  console.log('[diary:delete] Ignored - single diary mode');
+  return { success: false, error: 'Single diary mode - deletion not allowed' };
+});
+
+// 백업 기능
+ipcMain.handle('diary:backup', async () => {
+  if (!appWin) return { success: false, error: 'No window' };
+
   try {
-    // metadata 로드
-    const metadataPath = path.join(getDiaryDir(), 'metadata.json');
-    const data = await fs.readFile(metadataPath, 'utf-8');
-    const metadata = JSON.parse(data);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const { filePath, canceled } = await dialog.showSaveDialog(appWin, {
+      defaultPath: path.join(app.getPath('documents'), `Dingle_Backup_${timestamp}.json`),
+      filters: [{ name: 'JSON File', extensions: ['json'] }],
+    });
 
-    // 다이어리 제거
-    metadata.diaries = metadata.diaries.filter((d: any) => d.id !== diaryId);
+    if (canceled || !filePath) {
+      return { success: false, canceled: true };
+    }
 
-    // metadata 저장
-    await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
+    // 모든 다이어리 데이터 수집
+    const diaryDir = getDiaryDir();
+    const metadataPath = path.join(diaryDir, 'metadata.json');
+    const metadata = JSON.parse(await fs.readFile(metadataPath, 'utf-8'));
 
-    // 파일 삭제
-    const diaryPath = path.join(getDiaryDir(), `diary-${diaryId}.json`);
-    await fs.unlink(diaryPath).catch(() => {}); // 파일이 없어도 무시
+    const backupData: any = {
+      metadata,
+      diaries: {},
+      exportedAt: new Date().toISOString(),
+    };
 
-    console.log('[diary] Deleted:', diaryId);
-    return { success: true };
+    // 각 다이어리 파일 읽기
+    for (const diary of metadata.diaries || []) {
+      const diaryPath = path.join(diaryDir, `diary-${diary.id}.json`);
+      try {
+        const diaryData = await fs.readFile(diaryPath, 'utf-8');
+        backupData.diaries[diary.id] = JSON.parse(diaryData);
+      } catch (err) {
+        console.warn(`Diary ${diary.id} not found, skipping`);
+      }
+    }
+
+    await fs.writeFile(filePath, JSON.stringify(backupData, null, 2), 'utf-8');
+
+    return { success: true, filePath };
   } catch (error) {
-    console.error('diary:delete failed:', error);
+    console.error('Backup failed:', error);
     return { success: false, error: String(error) };
   }
 });
 
-ipcMain.handle('diary:load', async (_event, diaryId: string) => {
+// 복원 기능
+ipcMain.handle('diary:restore', async () => {
+  if (!appWin) return { success: false, error: 'No window' };
+
   try {
-    const diaryPath = path.join(getDiaryDir(), `diary-${diaryId}.json`);
+    const { filePaths, canceled } = await dialog.showOpenDialog(appWin, {
+      properties: ['openFile'],
+      filters: [{ name: 'JSON File', extensions: ['json'] }],
+    });
+
+    if (canceled || filePaths.length === 0) {
+      return { success: false, canceled: true };
+    }
+
+    const backupData = JSON.parse(await fs.readFile(filePaths[0], 'utf-8'));
+
+    if (!backupData.metadata || !backupData.diaries) {
+      return { success: false, error: '유효하지 않은 백업 파일입니다.' };
+    }
+
+    const diaryDir = getDiaryDir();
+    await fs.mkdir(diaryDir, { recursive: true });
+
+    // 메타데이터 로드 또는 생성
+    const metadataPath = path.join(diaryDir, 'metadata.json');
+    let currentMetadata: any = { diaries: [] };
+    try {
+      currentMetadata = JSON.parse(await fs.readFile(metadataPath, 'utf-8'));
+    } catch {
+      // 메타데이터가 없으면 새로 생성
+    }
+
+    // 백업된 다이어리들 복원
+    let restoredCount = 0;
+    for (const [diaryId, diaryData] of Object.entries(backupData.diaries)) {
+      const diaryPath = path.join(diaryDir, `diary-${diaryId}.json`);
+      await fs.writeFile(diaryPath, JSON.stringify(diaryData, null, 2), 'utf-8');
+      restoredCount++;
+    }
+
+    // 메타데이터 병합 (중복 제거)
+    const existingIds = new Set(currentMetadata.diaries.map((d: any) => d.id));
+    for (const diary of backupData.metadata.diaries || []) {
+      if (!existingIds.has(diary.id)) {
+        currentMetadata.diaries.push(diary);
+      }
+    }
+
+    await fs.writeFile(metadataPath, JSON.stringify(currentMetadata, null, 2), 'utf-8');
+
+    return { success: true, restoredCount };
+  } catch (error) {
+    console.error('Restore failed:', error);
+    return { success: false, error: String(error) };
+  }
+});
+
+ipcMain.handle('diary:load', async (_event, diaryId?: string) => {
+  try {
+    // 단일 다이어리 모드: 항상 diary.json 사용
+    const diaryPath = path.join(getDiaryDir(), 'diary.json');
     const data = await fs.readFile(diaryPath, 'utf-8');
     const diaryData = JSON.parse(data);
     
-    console.log('[diary] Loaded:', diaryId, 'Items:', diaryData.items?.length || 0);
+    console.log('[diary] Loaded: diary.json, Items:', diaryData.items?.length || 0);
     return { success: true, data: diaryData };
   } catch (error) {
     console.error('diary:load failed:', error);
@@ -1568,26 +1850,15 @@ ipcMain.handle('diary:load', async (_event, diaryId: string) => {
   }
 });
 
-ipcMain.handle('diary:save', async (_event, diaryId: string, data: any) => {
+ipcMain.handle('diary:save', async (_event, diaryIdOrData: string | any, dataOrUndefined?: any) => {
   try {
-    const diaryPath = path.join(getDiaryDir(), `diary-${diaryId}.json`);
+    // 단일 다이어리 모드: 항상 diary.json 사용
+    // 호환성을 위해 (diaryId, data) 또는 (data) 둘 다 지원
+    const data = dataOrUndefined !== undefined ? dataOrUndefined : diaryIdOrData;
+    const diaryPath = path.join(getDiaryDir(), 'diary.json');
     await fs.writeFile(diaryPath, JSON.stringify(data, null, 2), 'utf-8');
 
-    // metadata의 modified 시간 업데이트
-    const metadataPath = path.join(getDiaryDir(), 'metadata.json');
-    const metadataExists = await fs.access(metadataPath).then(() => true).catch(() => false);
-    
-    if (metadataExists) {
-      const metadataData = await fs.readFile(metadataPath, 'utf-8');
-      const metadata = JSON.parse(metadataData);
-      const diary = metadata.diaries.find((d: any) => d.id === diaryId);
-      if (diary) {
-        diary.modified = new Date().toISOString();
-        await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2), 'utf-8');
-      }
-    }
-
-    console.log('[diary] Saved:', diaryId, 'Items:', data.items?.length || 0);
+    console.log('[diary] Saved: diary.json, Items:', data.items?.length || 0);
     return { success: true };
   } catch (error) {
     console.error('diary:save failed:', error);
@@ -1595,45 +1866,22 @@ ipcMain.handle('diary:save', async (_event, diaryId: string, data: any) => {
   }
 });
 
-ipcMain.handle('diary:openInOverlay', async (_event, diaryId: string) => {
-  console.log('[IPC] diary:openInOverlay called', { diaryId, currentMode: overlayWin ? 'has overlay' : 'no overlay' });
+ipcMain.handle('diary:openInOverlay', async (_event, diaryId?: string) => {
+  // 단일 다이어리 모드: 이미 시작 시 overlay가 열려있으므로 no-op
+  console.log('[IPC] diary:openInOverlay - single diary mode, already open');
   
-  try {
-    currentDiaryId = diaryId;
-    console.log('[IPC] Set currentDiaryId:', currentDiaryId);
-    
-    // mini 모드로 전환 (overlay 열기)
-    console.log('[IPC] Calling setDisplayModeInternal("mini")...');
-    const result = await setDisplayModeInternal('mini');
-    console.log('[IPC] setDisplayModeInternal result:', { 
-      mode: result.mode, 
-      hasAppWin: !!(appWin && !appWin.isDestroyed()),
-      hasOverlayWin: !!(overlayWin && !overlayWin.isDestroyed())
-    });
-    
-    if (overlayWin) {
-      try {
-        console.log('[IPC] overlayWin state:', {
-          id: overlayWin.id,
-          isVisible: overlayWin.isVisible(),
-          isDestroyed: overlayWin.isDestroyed(),
-          isMinimized: overlayWin.isMinimized(),
-          bounds: overlayWin.getBounds(),
-          alwaysOnTop: overlayAlwaysOnTop
-        });
-      } catch (stateError) {
-        console.error('[IPC] Failed to get overlayWin state:', stateError);
-      }
-    } else {
-      console.error('[IPC] ❌ overlayWin is null after setDisplayModeInternal!');
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    // 이미 열려있으면 포커스만
+    try {
+      overlayWin.show();
+      overlayWin.focus();
+    } catch (e) {
+      console.error('[IPC] Failed to focus overlay:', e);
     }
-    
-    console.log('[IPC] ✅ diary:openInOverlay completed successfully');
-    return { success: true, mode: result.mode };
-  } catch (error) {
-    console.error('[IPC] ❌ diary:openInOverlay failed:', error);
-    return { success: false, error: String(error) };
+    return { success: true, mode: 'mini' };
   }
+  
+  return { success: false, error: 'Overlay not available' };
 });
 
 ipcMain.handle('diary:getCurrentId', async () => {
@@ -1684,11 +1932,11 @@ ipcMain.handle('font:upload', async () => {
 
 // --- 스티커 업로드 ---
 ipcMain.handle('sticker:upload', async () => {
-  if (!appWin) return { success: false, error: 'No window' };
+  if (!overlayWin) return { success: false, error: 'No window' };
   
   try {
-    const { filePaths, canceled } = await dialog.showOpenDialog(appWin, {
-      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg'] }],
+    const { filePaths, canceled } = await dialog.showOpenDialog(overlayWin, {
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'] }],
       properties: ['openFile']
     });
     
@@ -1711,7 +1959,12 @@ ipcMain.handle('sticker:upload', async () => {
     const imageData = fsSync.readFileSync(destPath);
     const base64 = imageData.toString('base64');
     const ext = path.extname(stickerPath).toLowerCase();
-    const mimeType = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.gif' ? 'image/gif' : 'image/svg+xml';
+    const mimeType = ext === '.png' ? 'image/png' 
+      : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' 
+      : ext === '.gif' ? 'image/gif'
+      : ext === '.webp' ? 'image/webp'
+      : ext === '.svg' ? 'image/svg+xml'
+      : 'image/png';
     const thumbnail = `data:${mimeType};base64,${base64}`;
     
     return { 
@@ -1743,15 +1996,14 @@ ipcMain.handle('sticker:delete', async (_event, filePath: string) => {
   }
 });
 
-ipcMain.handle('diary:exportToStaticHTML', async (_event, diaryId: string, options: {
-  includeMonthlyCover?: boolean;
-  includeEmbeds?: boolean;
-}) => {
+ipcMain.handle('diary:exportToStaticHTML', async (_event, diaryIdOrOptions?: string | any, optionsOrUndefined?: any) => {
   try {
-    console.log('[diary:exportToStaticHTML] Starting export...', { diaryId, options });
+    // 단일 다이어리 모드: diaryId 무시, 항상 diary.json 사용
+    const options = optionsOrUndefined !== undefined ? optionsOrUndefined : (typeof diaryIdOrOptions === 'object' ? diaryIdOrOptions : {});
+    console.log('[diary:exportToStaticHTML] Starting export...', { options });
 
     // 1. 다이어리 데이터 로드
-    const diaryPath = path.join(getDiaryDir(), `diary-${diaryId}.json`);
+    const diaryPath = path.join(getDiaryDir(), 'diary.json');
     const data = await fs.readFile(diaryPath, 'utf-8');
     const diaryData = JSON.parse(data);
     const items = diaryData.items || [];
@@ -1806,8 +2058,8 @@ ipcMain.handle('diary:exportToStaticHTML', async (_event, diaryId: string, optio
         const monthDate = `${year}-${month}-01`;
         
         const monthlyURL = isDev
-          ? `${indexPath}?windowMode=overlay&diaryId=${diaryId}&date=${monthDate}&layout=monthly`
-          : `${indexPath}?windowMode=overlay&diaryId=${diaryId}&date=${monthDate}&layout=monthly`;
+          ? `${indexPath}?windowMode=overlay&date=${monthDate}&layout=monthly`
+          : `${indexPath}?windowMode=overlay&date=${monthDate}&layout=monthly`;
 
         console.log('[diary:exportToStaticHTML] Loading monthly view:', monthlyURL);
         await hiddenWin.loadURL(monthlyURL);
@@ -1867,8 +2119,8 @@ ipcMain.handle('diary:exportToStaticHTML', async (_event, diaryId: string, optio
         });
         
         const scrapURL = isDev
-          ? `${indexPath}?windowMode=overlay&diaryId=${diaryId}&date=${date}`
-          : `${indexPath}?windowMode=overlay&diaryId=${diaryId}&date=${date}`;
+          ? `${indexPath}?windowMode=overlay&date=${date}`
+          : `${indexPath}?windowMode=overlay&date=${date}`;
 
         console.log('[diary:exportToStaticHTML] Loading scrapbook for date:', date);
         await hiddenWin.loadURL(scrapURL);
@@ -1994,7 +2246,9 @@ app.on('browser-window-created', (_, window) => {
 ipcMain.handle('window:minimize', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) {
-    win.minimize();
+    // 트레이로 숨김 (minimize 대신 hide)
+    win.hide();
+    console.log('[window] Hidden to tray');
     return { success: true };
   }
   return { success: false };

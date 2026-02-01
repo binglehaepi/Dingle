@@ -51,6 +51,11 @@ export function useItemHandlers({ state, isMobile, pageOffset, formatDateKey, fo
   type AABB = { x: number; y: number; w: number; h: number };
 
   const estimateBoxFor = (type: ScrapType, platform?: Platform) => {
+    // 스티커/테이프: 작은 크기 (60x60)
+    if (type === ScrapType.STICKER || type === ScrapType.TAPE) {
+      return { w: 60, h: 60 };
+    }
+
     // MVP: 링크/임베드 계열은 대체로 넓은 카드
     const p = platform?.toLowerCase();
     if (
@@ -356,9 +361,13 @@ export function useItemHandlers({ state, isMobile, pageOffset, formatDateKey, fo
           description: "",
           imageUrl: result,
           url: "", 
-          isEditable: false
+          isEditable: false,
+          stickerConfig: {
+            imageUrl: result,
+            emoji: undefined
+          }
         };
-        const id = spawnItem(ScrapType.GENERAL, metadata, { targetDateKey });
+        const id = spawnItem(ScrapType.STICKER, metadata, { targetDateKey });
         return id;
       }
     } catch (e) {
@@ -398,7 +407,7 @@ export function useItemHandlers({ state, isMobile, pageOffset, formatDateKey, fo
     const id = crypto.randomUUID();
     const createdAt = Date.now();
     const rotation = (Math.random() * 4) - 2;
-    const scale = 0.5;
+    const scale = type === ScrapType.STICKER || type === ScrapType.TAPE ? 1.0 : 0.5;
     const est = estimateBoxFor(type, metadata?.platform as any);
     const boxW = est.w * scale;
     const boxH = est.h * scale;
@@ -442,6 +451,8 @@ export function useItemHandlers({ state, isMobile, pageOffset, formatDateKey, fo
           rotation,
           scale
         },
+        w: boxW,  // ✅ 아이템 너비 설정
+        h: boxH,  // ✅ 아이템 높이 설정
         createdAt,
         diaryDate: targetDateKey,
         borderStyle: 'none',

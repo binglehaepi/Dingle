@@ -1,13 +1,24 @@
 import React, { useRef } from 'react';
+import { KeyringFrameType } from '../types';
 
 interface KeyringProps {
   charm: string; // Emoji or Image URL
+  frameType?: KeyringFrameType; // 테두리 모양
+  charmImage?: string; // 테두리 안에 넣을 이미지
   onCharmChange?: (newCharm: string) => void;
+  onCharmImageChange?: (newImage: string) => void;
 }
 
-const Keyring: React.FC<KeyringProps> = ({ charm, onCharmChange }) => {
+const Keyring: React.FC<KeyringProps> = ({ 
+  charm, 
+  frameType = 'rounded-square',
+  charmImage,
+  onCharmChange,
+  onCharmImageChange 
+}) => {
   const isImage = charm.startsWith('http') || charm.startsWith('data:');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const charmImageInputRef = useRef<HTMLInputElement>(null);
   const isDraggingRef = useRef(false);
 
   const handleCharmClick = () => {
@@ -31,6 +42,52 @@ const Keyring: React.FC<KeyringProps> = ({ charm, onCharmChange }) => {
         }
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCharmImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0] && onCharmImageChange) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          onCharmImageChange(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleCharmImageClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    charmImageInputRef.current?.click();
+  };
+
+  // 테두리 모양에 따른 스타일
+  const getFrameStyle = () => {
+    const baseStyle = {
+      width: '64px',
+      height: '64px',
+      border: '1px solid var(--widget-border-color, rgba(148, 163, 184, 0.6))',
+      background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%)',
+      boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2), inset 0 2px 4px rgba(255, 255, 255, 0.5)',
+      overflow: 'hidden',
+      position: 'relative' as const,
+    };
+
+    switch (frameType) {
+      case 'circle':
+        return { ...baseStyle, borderRadius: '50%' };
+      case 'heart':
+        return { 
+          ...baseStyle, 
+          borderRadius: '0',
+          clipPath: 'polygon(50% 100%, 15% 60%, 15% 35%, 25% 20%, 40% 15%, 50% 20%, 60% 15%, 75% 20%, 85% 35%, 85% 60%)',
+          transform: 'scale(1.1)',
+        };
+      case 'rounded-square':
+      default:
+        return { ...baseStyle, borderRadius: '12px' };
     }
   };
 
@@ -117,8 +174,8 @@ const Keyring: React.FC<KeyringProps> = ({ charm, onCharmChange }) => {
          />
        </div>
 
-       {/* 2. 향상된 체인 (4 links - 금속 질감) */}
-       {[0, 1, 2, 3].map((i) => (
+       {/* 2. 향상된 체인 (3 links - 금속 질감) */}
+       {[0, 1, 2].map((i) => (
          <div 
            key={i}
            className="-mt-0.5 w-2.5 h-4 rounded-full transition-all duration-300"
@@ -131,46 +188,47 @@ const Keyring: React.FC<KeyringProps> = ({ charm, onCharmChange }) => {
          />
        ))}
 
-       {/* 3. The Charm (향상된 디자인) */}
+       {/* 3. The Charm (테두리 + 이미지) */}
        <div 
            data-charm
            className="-mt-0.5 relative group-active:scale-95 transition-all duration-300 cursor-pointer"
-           onClick={handleCharmClick}
+           onClick={handleCharmImageClick}
            onTouchEnd={(e) => {
                e.preventDefault();
-               handleCharmClick();
+               handleCharmImageClick(e);
            }}
            style={{
              filter: 'drop-shadow(0 4px 6px rgba(0, 0, 0, 0.2))'
            }}
        >
-           {isImage ? (
-               <div className="w-16 h-16 relative transform transition-all duration-300 group-hover:rotate-12 group-hover:scale-110">
-                   <div 
-                     className="absolute inset-0 rounded-lg"
-                     style={{
-                       background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 100%)',
-                       border: '3px solid var(--keyring-accent)',
-                       boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2), inset 0 2px 4px rgba(255, 255, 255, 0.5)'
-                     }}
-                   />
-                   <img 
-                     src={charm} 
-                     alt="charm" 
-                     className="w-full h-full object-contain rounded-lg relative z-10" 
-                   />
-               </div>
-           ) : (
-               <div 
-                 className="text-5xl transform transition-all duration-300 group-hover:rotate-12 group-hover:scale-110"
+           {/* 테두리 프레임 */}
+           <div 
+             className="transform transition-all duration-300 group-hover:rotate-12 group-hover:scale-110"
+             style={getFrameStyle()}
+           >
+             {/* 테두리 안 이미지 */}
+             {charmImage ? (
+               <img 
+                 src={charmImage} 
+                 alt="charm decoration" 
+                 className="w-full h-full object-cover"
                  style={{
-                   filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3))',
-                   textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)'
+                   position: 'absolute',
+                   top: 0,
+                   left: 0,
+                 }}
+               />
+             ) : (
+               <div 
+                 className="w-full h-full flex items-center justify-center text-gray-300 text-xs"
+                 style={{
+                   background: 'var(--widget-surface-background, #ffffff)',
                  }}
                >
-                   {charm}
+                 클릭하여<br/>사진 추가
                </div>
-           )}
+             )}
+           </div>
            
            {/* 반짝임 효과 */}
            <div 
@@ -182,13 +240,20 @@ const Keyring: React.FC<KeyringProps> = ({ charm, onCharmChange }) => {
            />
        </div>
        
-       {/* Hidden file input */}
+       {/* Hidden file inputs */}
        <input 
          type="file" 
          ref={fileInputRef} 
          className="hidden" 
          accept="image/*" 
          onChange={handleImageUpload} 
+       />
+       <input 
+         type="file" 
+         ref={charmImageInputRef} 
+         className="hidden" 
+         accept="image/*" 
+         onChange={handleCharmImageUpload} 
        />
     </div>
   );

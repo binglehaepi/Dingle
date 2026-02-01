@@ -113,6 +113,18 @@ export interface ElectronAPI {
     success: boolean;
     error?: string;
   }>;
+  diaryBackup: () => Promise<{
+    success: boolean;
+    filePath?: string;
+    canceled?: boolean;
+    error?: string;
+  }>;
+  diaryRestore: () => Promise<{
+    success: boolean;
+    restoredCount?: number;
+    canceled?: boolean;
+    error?: string;
+  }>;
   diaryLoad: (diaryId: string) => Promise<{
     success: boolean;
     data?: any;

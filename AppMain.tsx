@@ -6,7 +6,7 @@
  */
 
 import React, { useMemo, useEffect, Suspense } from 'react';
-import { SPREAD_WIDTH, DESIGN_HEIGHT, GLOBAL_SCRAP_PAGE_KEY } from './constants/appConstants';
+import { getSpreadWidth, DESIGN_HEIGHT, GLOBAL_SCRAP_PAGE_KEY } from './constants/appConstants';
 
 // Hooks
 import { useAppState } from './hooks/useAppState';
@@ -20,9 +20,13 @@ import { useFileSync } from './hooks/useFileSync';
 // Components
 const DesktopApp = React.lazy(() => import('./components/DesktopApp'));
 const MobileApp = React.lazy(() => import('./components/mobile/MobileApp'));
+import PersistentYouTubePlayer from './components/PersistentYouTubePlayer';
 
 // Backup
 import BackupDialog from './components/BackupDialog';
+
+// Music
+import { useMusicStore } from './music/MusicStore';
 
 // Utils
 import { applyDiaryStyleToDocument } from './utils/theme';
@@ -65,7 +69,7 @@ const AppMain: React.FC = () => {
   // ===== Device & Viewport =====
   const deviceMode = useDeviceMode();
   const isMobile = deviceMode === 'mobile';
-  const designWidth = isMobile ? DESIGN_HEIGHT : SPREAD_WIDTH; // Mobile은 세로 모드
+  const designWidth = isMobile ? DESIGN_HEIGHT : getSpreadWidth(diaryStyle.compactMode); // Mobile은 세로 모드
   const { ref: viewportRef, scale } = useFitScale(designWidth, DESIGN_HEIGHT);
 
   // ===== 날짜 기반 아이템 필터링 =====
@@ -140,6 +144,14 @@ const AppMain: React.FC = () => {
     applyDiaryStyleToDocument(diaryStyle);
   }, [diaryStyle]);
 
+  // ===== Font 복원 (초기 로드 시) =====
+  useEffect(() => {
+    const savedFont = localStorage.getItem('dingle:font');
+    if (savedFont) {
+      document.documentElement.setAttribute('data-font', savedFont);
+    }
+  }, []);
+
   // ===== 백업 다이얼로그 핸들러 =====
   const handleOpenBackup = () => {
     setShowBackupDialog(true);
@@ -153,6 +165,7 @@ const AppMain: React.FC = () => {
     currentLayout,
     currentDate,
     textData,
+    setTextData, // ✅ 백업/복원을 위해 추가
     diaryStyle,
     setDiaryStyle,
     loading: state.loading,
@@ -206,8 +219,13 @@ const AppMain: React.FC = () => {
     onInsertLinksToDate,
   };
 
+  const music = useMusicStore();
+
   return (
     <>
+      {/* 전역 백그라운드 음악 플레이어 */}
+      <PersistentYouTubePlayer />
+      
       <Suspense fallback={
         <div style={{
           width: '100vw',
@@ -242,6 +260,32 @@ const AppMain: React.FC = () => {
           setToastMsg={state.setToastMsg}
           onClose={() => setShowBackupDialog(false)}
         />
+      )}
+
+      {/* 음악 재생 오류 Toast */}
+      {music.errorMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            backgroundColor: 'rgba(239, 68, 68, 0.95)',
+            color: 'white',
+            padding: '16px 24px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+            zIndex: 10000,
+            maxWidth: '400px',
+            fontSize: '14px',
+            lineHeight: '1.5',
+            whiteSpace: 'pre-line',
+          }}
+        >
+          <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+            🎵 음악 재생 오류
+          </div>
+          {music.errorMessage}
+        </div>
       )}
     </>
   );

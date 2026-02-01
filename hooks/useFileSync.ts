@@ -73,17 +73,27 @@ export function useFileSync({
         const data = await loadDiaryFromFile();
 
         if (data) {
+          // maxZ 업데이트 및 z값 보정
+          const loadedItems = migrateScrapItemsDecoration(data.items).map((item, index) => ({
+            ...item,
+            position: {
+              x: item.position?.x ?? 100,
+              y: item.position?.y ?? 100,
+              z: item.position?.z ?? (index + 1), // z값이 없으면 순서대로 할당
+              rotation: item.position?.rotation ?? 0,
+              scale: item.position?.scale ?? 1
+            }
+          }));
+          
           // 파일 데이터 사용
-          setItems(migrateScrapItemsDecoration(data.items));
+          setItems(loadedItems);
           setTextData(data.textData);
           setLinkDockItems(data.linkDockItems || []);
           
           setDiaryStyle(migrateDiaryStyle(data.stylePref));
 
-          // maxZ 업데이트
-          const loadedItems = migrateScrapItemsDecoration(data.items);
           if (loadedItems.length > 0) {
-            const highestZ = Math.max(...loadedItems.map(i => i.position.z || 1));
+            const highestZ = Math.max(...loadedItems.map(i => i.position.z));
             setMaxZ(highestZ + 1);
           }
 
@@ -115,8 +125,21 @@ export function useFileSync({
               
               setDiaryStyle(migrateDiaryStyle(migratedData.stylePref));
 
-              if (migratedData.items.length > 0) {
-                const highestZ = Math.max(...migratedData.items.map(i => i.position.z || 1));
+              // z값 보정
+              const fixedItems = migratedData.items.map((item, index) => ({
+                ...item,
+                position: {
+                  x: item.position?.x ?? 100,
+                  y: item.position?.y ?? 100,
+                  z: item.position?.z ?? (index + 1),
+                  rotation: item.position?.rotation ?? 0,
+                  scale: item.position?.scale ?? 1
+                }
+              }));
+              setItems(fixedItems);
+              
+              if (fixedItems.length > 0) {
+                const highestZ = Math.max(...fixedItems.map(i => i.position.z));
                 setMaxZ(highestZ + 1);
               }
             }

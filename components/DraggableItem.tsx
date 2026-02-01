@@ -12,10 +12,12 @@ interface DraggableItemProps {
   onDragStart?: () => void; // 📱 스와이프 제스처 비활성화용
   onDragEnd?: () => void;   // 📱 스와이프 제스처 재활성화용
   interactionScale?: number;  // 🔧 드래그 스케일 보정 (default: 1)
+  hideControls?: boolean;  // 🎨 모든 컨트롤 버튼 숨김 (텍스트 노트용)
+  isSelected?: boolean;  // 🎯 선택된 아이템 여부 (핸들 표시용)
   children: React.ReactNode;
 }
 
-const DraggableItem: React.FC<DraggableItemProps> = ({ item, onUpdatePosition, onBringToFront, onSelect, onDelete, onSetMainItem, snapToGrid = false, onDragStart, onDragEnd, interactionScale = 1, children }) => {
+const DraggableItem: React.FC<DraggableItemProps> = ({ item, onUpdatePosition, onBringToFront, onSelect, onDelete, onSetMainItem, snapToGrid = false, onDragStart, onDragEnd, interactionScale = 1, hideControls = false, isSelected = false, children }) => {
   const ref = useRef<HTMLDivElement>(null);
   const DBG = !!import.meta.env.DEV && (typeof window !== 'undefined') && ((window as any).__DSD_DEBUG_DRAG ?? true);
   const suppressNextClickRef = useRef(false);
@@ -66,6 +68,21 @@ const DraggableItem: React.FC<DraggableItemProps> = ({ item, onUpdatePosition, o
   // State for rotating
   const [isRotating, setIsRotating] = useState(false);
   const [rotationStart, setRotationStart] = useState({ angle: 0 });
+
+  // State for hovering (스티커 핸들 표시용)
+  const [hovering, setHovering] = useState(false);
+  
+  // 스티커/테이프는 작은 핸들 사용
+  const isStickerType = item.type === 'sticker' || item.type === 'tape';
+  
+  // 아이템 크기 (경계 체크 및 핸들 크기 조정용)
+  const itemWidth = item.w || 100;
+  const itemHeight = item.h || 100;
+  const itemScale = item.position.scale || 1;
+  const actualWidth = itemWidth * itemScale;  // 스케일 적용된 실제 너비
+  const actualHeight = itemHeight * itemScale; // 스케일 적용된 실제 높이
+  const isSmallItem = actualWidth < 150 && actualHeight < 150;
+  const handleSize = isSmallItem ? 6 : 10; // 24px vs 40px
 
   const disableIframesPointerEvents = () => {
     const el = ref.current;
@@ -136,8 +153,24 @@ const DraggableItem: React.FC<DraggableItemProps> = ({ item, onUpdatePosition, o
 
   // --- Drag Handlers ---
   const handlePointerDown = (e: React.PointerEvent) => {
+    // 🛑 이벤트 전파 방지 (다이어리 이동 방지)
+    e.stopPropagation();
+    
     // 🔗 입력/버튼은 드래그 시작 방지 (링크(<a>)는 "움직였을 때만 드래그"로 처리)
     const target = e.target as HTMLElement;
+    
+    // 🎯 핸들 클릭인 경우 부모 핸들러 무시 (회전/리사이즈 핸들 작동 허용)
+    const handleType = target.closest('[data-handle-type]')?.getAttribute('data-handle-type');
+    if (handleType === 'rotate' || handleType === 'resize') {
+      if (DBG) {
+        console.debug('[drag] pointerDown SKIPPED - handle clicked', {
+          itemId: item.id,
+          handleType,
+        });
+      }
+      return;
+    }
+    
     if (target.closest('button, input, textarea')) {
       if (DBG) {
         const blockedBy =
@@ -160,6 +193,7 @@ const DraggableItem: React.FC<DraggableItemProps> = ({ item, onUpdatePosition, o
     
     onBringToFront(item.id);
     onSelect?.(item.id);
+    
     // "potential drag" 시작: 아직 preventDefault 하지 않아 링크 클릭/더블클릭은 유지됨.
     setIsPointerActive(true);
     pendingDragRef.current.pointerId = e.pointerId;
@@ -194,12 +228,26 @@ const DraggableItem: React.FC<DraggableItemProps> = ({ item, onUpdatePosition, o
   };
 
   // --- Resize Handlers ---
-  const handleResizeDown = (e: React.PointerEvent) => {
+  const handleResizeDown = (e: React.PointerEvent | React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation(); // Prevent drag start
       
-      // Capture pointer for smooth touch tracking
-      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      console.log('🔧 리사이즈 핸들 클릭:', { 
+        itemId: item.id, 
+        itemType: item.type,
+        currentScale: item.position.scale || 1,
+        clientX: e.clientX,
+        clientY: e.clientY
+      });
+      
+      // Capture pointer for smooth touch tracking (only for PointerEvent)
+      if ('pointerId' in e && e.pointerId != null) {
+        try {
+          (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        } catch (err) {
+          // Ignore if pointer capture fails
+        }
+      }
       
       onBringToFront(item.id);
       onDragStart?.(); // ✅ 리사이즈 중 모달 오픈 방지용
@@ -211,12 +259,26 @@ const DraggableItem: React.FC<DraggableItemProps> = ({ item, onUpdatePosition, o
   };
 
   // --- Rotate Handlers ---
-  const handleRotateDown = (e: React.PointerEvent) => {
+  const handleRotateDown = (e: React.PointerEvent | React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
       
-      // Capture pointer for smooth touch tracking
-      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+      console.log('🔄 회전 핸들 클릭:', { 
+        itemId: item.id, 
+        itemType: item.type,
+        currentRotation: item.position.rotation || 0,
+        clientX: e.clientX,
+        clientY: e.clientY
+      });
+      
+      // Capture pointer for smooth touch tracking (only for PointerEvent)
+      if ('pointerId' in e && e.pointerId != null) {
+        try {
+          (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+        } catch (err) {
+          // Ignore if pointer capture fails
+        }
+      }
       
       onBringToFront(item.id);
       onDragStart?.(); // ✅ 회전 중 모달 오픈 방지용
@@ -321,13 +383,103 @@ const DraggableItem: React.FC<DraggableItemProps> = ({ item, onUpdatePosition, o
           let newX = pendingDragRef.current.startX + dx;
           let newY = pendingDragRef.current.startY + dy;
 
-          // 🔧 간소화된 Boundary Check - Y축만 제한 (X축은 자유롭게)
-          // Desktop에서 왼쪽/오른쪽 페이지 이동을 위해 X축 제한 제거
-          const minY = -200; // 상단 여유
-          const maxY = 1000; // 하단 여유 (DESIGN_HEIGHT 820 + 여유)
+          // 🔧 Boundary Check
+          // 모든 아이템 타입에 경계 제한 적용 (스티커, 테이프, 링크카드, 이미지 등)
+          // 스크랩 모드(snapToGrid=true)일 때: 1100px 캔버스 범위 내로 제한
+          // 일반 모드: 작은 아이템(스티커 등)은 X/Y 모두 제한, 큰 아이템은 Y만 제한
           
-          newY = Math.max(minY, Math.min(maxY, newY));
-          // newX는 제한 없음 (페이지 경계를 자유롭게 넘나들 수 있음)
+          // 🔧 Boundary Check with Scale Offset
+          // transform: scale()은 중앙 기준이므로 offset 계산 필요
+          const currentScale = item.position.scale || 1;
+          
+          // w, h가 undefined면 기본값 추정 (링크카드 등)
+          let baseWidth = item.w;
+          let baseHeight = item.h;
+          
+          if (!baseWidth || !baseHeight) {
+            // 추정: 링크카드는 보통 420x360, 기타는 100x100
+            const isLinkCard = ['twitter', 'instagram', 'youtube', 'spotify', 'tiktok', 'vimeo', 'pinterest'].includes(item.type);
+            baseWidth = baseWidth || (isLinkCard ? 420 : 100);
+            baseHeight = baseHeight || (isLinkCard ? 360 : 100);
+          }
+          
+          const scaledWidth = baseWidth * currentScale;
+          const scaledHeight = baseHeight * currentScale;
+          
+          // scale()은 중앙 기준이므로 좌측/상단으로 (scaledWidth - baseWidth) / 2 만큼 확장됨
+          const scaleOffsetX = (scaledWidth - baseWidth) / 2;
+          const scaleOffsetY = (scaledHeight - baseHeight) / 2;
+          
+          const isCurrentlySmall = scaledWidth < 200 && scaledHeight < 200;
+          
+          const needsBoundary = 
+            item.type === 'sticker' || 
+            item.type === 'tape' || 
+            isCurrentlySmall;
+          
+          if (snapToGrid) {
+            // ✅ 스크랩 모드: 1100px 캔버스
+            const canvasWidth = 1100;
+            const canvasHeight = 820;
+            
+            if (needsBoundary) {
+              const minX = -scaleOffsetX;
+              const minY = -scaleOffsetY;
+              const maxX = canvasWidth - baseWidth - scaleOffsetX;
+              const maxY = canvasHeight - baseHeight - scaleOffsetY;
+              
+              console.log('🔲 스크랩 모드 경계:', { 
+                itemType: item.type, 
+                baseW: baseWidth, 
+                baseH: baseHeight, 
+                scale: currentScale, 
+                scaledW: scaledWidth, 
+                offsetX: scaleOffsetX,
+                maxX, 
+                maxY, 
+                beforeX: newX, 
+                beforeY: newY 
+              });
+              
+              newX = Math.max(minX, Math.min(maxX, newX));
+              newY = Math.max(minY, Math.min(maxY, newY));
+            }
+          } else {
+            // 일반 모드: 1400px spread
+            const canvasWidth = 1400;
+            const canvasHeight = 820;
+            
+            if (needsBoundary) {
+              const minX = -scaleOffsetX;
+              const minY = -scaleOffsetY;
+              const maxX = canvasWidth - baseWidth - scaleOffsetX;
+              const maxY = canvasHeight - baseHeight - scaleOffsetY;
+              
+              console.log('🔲 일반 모드 경계:', { 
+                itemType: item.type, 
+                baseW: baseWidth, 
+                baseH: baseHeight, 
+                scale: currentScale, 
+                scaledW: scaledWidth, 
+                offsetX: scaleOffsetX,
+                minX,
+                maxX, 
+                maxY, 
+                beforeX: newX, 
+                beforeY: newY 
+              });
+              
+              newX = Math.max(minX, Math.min(maxX, newX));
+              newY = Math.max(minY, Math.min(maxY, newY));
+              
+              console.log('✅ 경계 적용 완료:', { afterX: newX, afterY: newY });
+            } else {
+              // 큰 아이템은 Y축만 제한
+              const minY = -200;
+              const maxY = 1000;
+              newY = Math.max(minY, Math.min(maxY, newY));
+            }
+          }
 
           // Magnetic Grid Logic (Snap to 20px)
           if (snapToGrid) {
@@ -506,16 +658,28 @@ const DraggableItem: React.FC<DraggableItemProps> = ({ item, onUpdatePosition, o
       }
   };
 
+  // 핸들 표시 조건: 선택된 아이템만 핸들 표시
+  const showHandles = isSelected;
+
   return (
     <div
       ref={ref}
+      data-draggable="true"
+      data-scrap-item="true"
+      onClick={(e) => {
+        // 아이템 클릭 시 선택
+        e.stopPropagation();
+        onSelect?.(item.id);
+      }}
       onPointerDownCapture={handlePointerDown}
+      onPointerEnter={() => setHovering(true)}
+      onPointerLeave={() => setHovering(false)}
       onClickCapture={(e) => {
         if (!suppressNextClickRef.current) return;
         e.preventDefault();
         e.stopPropagation();
       }}
-      className={`absolute select-none touch-none transition-shadow group/item ${isDragging ? 'z-50 cursor-grabbing drop-shadow-2xl' : 'cursor-grab'} ${getBorderClasses(item.borderStyle)}`}
+      className={`absolute select-none touch-none transition-shadow group/item ${isDragging ? 'z-50 cursor-grabbing drop-shadow-2xl' : 'cursor-move'} ${hideControls ? '' : getBorderClasses(item.borderStyle)}`}
       style={{
         transform: `translate(var(--dsd-drag-x, ${item.position.x}px), var(--dsd-drag-y, ${item.position.y}px)) rotate(${item.position.rotation}deg) scale(${item.position.scale || 1})`,
         zIndex: isDragging || isResizing || isRotating ? 9999 : item.position.z,
@@ -529,64 +693,135 @@ const DraggableItem: React.FC<DraggableItemProps> = ({ item, onUpdatePosition, o
       </div>
 
       {/* --- Controls Overlay (Visible on Hover) --- */}
-      
-      {/* 1. Delete Button (Top Right) */}
-      <button 
-          onPointerDown={(e) => e.stopPropagation()} // FIX: Prevent drag start
-          onClick={deleteItem}
-          className="absolute -top-3 -right-3 w-10 h-10 bg-[var(--ui-danger-bg)] rounded-full text-[var(--ui-danger-text)] shadow-md flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity hover:scale-110 active:scale-95 z-50 no-drag touch-manipulation hover:bg-[var(--ui-danger-hover)]"
-          title="Delete Item"
-      >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-          </svg>
-      </button>
+      {!hideControls && (
+        <>
+          {/* 0. Drag Handle (Top Left) */}
+          <div 
+            className={`absolute bg-slate-500/90 rounded-full text-white shadow-md flex items-center justify-center cursor-grab active:cursor-grabbing z-50 touch-manipulation ${showHandles ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            title="Drag to move"
+            style={{ 
+              pointerEvents: showHandles ? 'auto' : 'none',
+              width: `${handleSize * 4}px`,
+              height: `${handleSize * 4}px`,
+              top: `${-handleSize * 1.2}px`,
+              left: `${-handleSize * 1.2}px`
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" style={{ width: `${handleSize * 2}px`, height: `${handleSize * 2}px` }} viewBox="0 0 24 24" fill="currentColor">
+              <path d="M9 3H11V5H9V3M13 3H15V5H13V3M9 7H11V9H9V7M13 7H15V9H13V7M9 11H11V13H9V11M13 11H15V13H13V11M9 15H11V17H9V15M13 15H15V17H13V15M9 19H11V21H9V19M13 19H15V21H13V19Z" />
+            </svg>
+          </div>
+          
+          {/* 1. Delete Button (Top Right) */}
+          <button 
+              onPointerDown={(e) => e.stopPropagation()} // FIX: Prevent drag start
+              onClick={deleteItem}
+              className={`absolute bg-[var(--ui-danger-bg)] rounded-full text-[var(--ui-danger-text)] shadow-md flex items-center justify-center transition-all hover:scale-110 active:scale-95 z-50 no-drag touch-manipulation hover:bg-[var(--ui-danger-hover)] ${showHandles ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+              title="Delete Item"
+              style={{
+                width: `${handleSize * 4}px`,
+                height: `${handleSize * 4}px`,
+                top: `${-handleSize * 1.2}px`,
+                right: `${-handleSize * 1.2}px`
+              }}
+          >
+              <svg xmlns="http://www.w3.org/2000/svg" style={{ width: `${handleSize * 1.6}px`, height: `${handleSize * 1.6}px` }} viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+          </button>
 
-      {/* 2. Rotate Handle (Bottom Left) - Replaces Border Button */}
-      <div 
-          onPointerDown={handleRotateDown}
-          className={`
-            absolute -bottom-3 -left-3 w-10 h-10 bg-[var(--ui-primary-bg)] rounded-full text-[var(--ui-primary-text)] shadow-md flex items-center justify-center 
-            cursor-ew-resize opacity-0 group-hover/item:opacity-100 transition-opacity hover:scale-110 active:scale-95 z-50 no-drag touch-manipulation
-            hover:bg-[var(--ui-primary-hover)]
-            ${isRotating ? 'opacity-100 scale-110 bg-[var(--ui-primary-hover)]' : ''}
-          `}
-          title="Rotate"
-      >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
-             <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-          </svg>
-      </div>
+          {/* 2. Rotate Handle (Bottom Left) - Replaces Border Button */}
+          <div 
+              data-handle-type="rotate"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleRotateDown(e as any);
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleRotateDown(e as any);
+              }}
+              className={`
+                absolute bg-[var(--ui-primary-bg)] rounded-full text-[var(--ui-primary-text)] shadow-md flex items-center justify-center 
+                cursor-ew-resize transition-all hover:scale-110 active:scale-95 no-drag touch-manipulation
+                hover:bg-[var(--ui-primary-hover)]
+                ${isRotating ? 'opacity-100 scale-110 bg-[var(--ui-primary-hover)]' : ''}
+                ${showHandles ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+              `}
+              style={{ 
+                pointerEvents: showHandles ? 'auto' : 'none', 
+                zIndex: 9999, 
+                touchAction: 'none',
+                width: `${handleSize * 4}px`,
+                height: `${handleSize * 4}px`,
+                bottom: `${-handleSize * 1.2}px`,
+                left: `${-handleSize * 1.2}px`
+              }}
+              title="Rotate"
+          >
+              <svg xmlns="http://www.w3.org/2000/svg" style={{ width: `${handleSize * 1.6}px`, height: `${handleSize * 1.6}px` }} viewBox="0 0 20 20" fill="currentColor">
+                 <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+              </svg>
+          </div>
 
-      {/* 3. Main Item Toggle (Top Center) - 별표로 스크랩 페이지 추가 */}
-      <button
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={toggleMainItem}
-          className={`
-            absolute -top-4 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full shadow-md flex items-center justify-center transition-all z-50 no-drag touch-manipulation active:scale-95
-            ${item.metadata.sourceId || item.isMainItem ? 'bg-yellow-400 text-white scale-110 ring-2 ring-yellow-200' : 'bg-white text-stone-300 hover:text-yellow-400 opacity-0 group-hover/item:opacity-100'}
-          `}
-          title={item.metadata.sourceId ? "스크랩됨 (클릭하여 제거)" : item.isMainItem ? "스크랩 페이지에서 제거" : "⭐ 클릭하여 스크랩 페이지에 추가"}
-      >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M10 2a1 1 0 01.894.553l2.991 6.062 6.696.973a1 1 0 01.555 1.705l-4.846 4.723 1.144 6.669a1 1 0 01-1.45 1.054L10 18.347l-5.989 3.146a1 1 0 01-1.45-1.054l1.144-6.669L.555 11.293a1 1 0 01.555-1.705l6.696-.973L9.106 2.553A1 1 0 0110 2z" clipRule="evenodd" />
-          </svg>
-      </button>
+          {/* 3. Main Item Toggle (Top Center) - 별표로 스크랩 페이지 추가 */}
+          <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={toggleMainItem}
+              className={`
+                absolute left-1/2 -translate-x-1/2 rounded-full shadow-md flex items-center justify-center transition-all z-50 no-drag touch-manipulation active:scale-95
+                ${item.metadata.sourceId || item.isMainItem ? 'bg-yellow-400 text-white scale-110 ring-2 ring-yellow-200' : `bg-white text-stone-300 hover:text-yellow-400 ${showHandles ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+              `}
+              style={{
+                width: `${handleSize * 4}px`,
+                height: `${handleSize * 4}px`,
+                top: `${-handleSize * 1.6}px`
+              }}
+              title={item.metadata.sourceId ? "스크랩됨 (클릭하여 제거)" : item.isMainItem ? "스크랩 페이지에서 제거" : "⭐ 클릭하여 스크랩 페이지에 추가"}
+          >
+              <svg xmlns="http://www.w3.org/2000/svg" style={{ width: `${handleSize * 2}px`, height: `${handleSize * 2}px` }} viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 2a1 1 0 01.894.553l2.991 6.062 6.696.973a1 1 0 01.555 1.705l-4.846 4.723 1.144 6.669a1 1 0 01-1.45 1.054L10 18.347l-5.989 3.146a1 1 0 01-1.45-1.054l1.144-6.669L.555 11.293a1 1 0 01.555-1.705l6.696-.973L9.106 2.553A1 1 0 0110 2z" clipRule="evenodd" />
+              </svg>
+          </button>
 
-      {/* Resize Handle (Bottom Right) */}
-      <div 
-        onPointerDown={handleResizeDown}
-        className={`
-            absolute -bottom-3 -right-3 w-10 h-10 rounded-full bg-white shadow-md border border-slate-200 
-            flex items-center justify-center cursor-nwse-resize z-50 text-slate-400 hover:text-purple-600 hover:bg-purple-50 active:scale-95 transition-all
-            opacity-0 group-hover/item:opacity-100 ${isResizing ? 'opacity-100 bg-purple-100 text-purple-600' : ''} no-drag touch-manipulation
-        `}
-        title="Drag to resize"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-        </svg>
-      </div>
+          {/* Resize Handle (Bottom Right) */}
+          <div 
+            data-handle-type="resize"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleResizeDown(e as any);
+            }}
+            onTouchStart={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleResizeDown(e as any);
+            }}
+            className={`
+                absolute rounded-full bg-white shadow-md border border-slate-200 
+                flex items-center justify-center cursor-nwse-resize text-slate-400 hover:text-purple-600 hover:bg-purple-50 active:scale-95 transition-all
+                ${isResizing ? 'opacity-100 bg-purple-100 text-purple-600' : ''} no-drag touch-manipulation
+                ${showHandles ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+            `}
+            style={{ 
+              pointerEvents: showHandles ? 'auto' : 'none', 
+              zIndex: 9999, 
+              touchAction: 'none',
+              width: `${handleSize * 4}px`,
+              height: `${handleSize * 4}px`,
+              bottom: `${-handleSize * 1.2}px`,
+              right: `${-handleSize * 1.2}px`
+            }}
+            title="Drag to resize"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" style={{ width: `${handleSize * 1.6}px`, height: `${handleSize * 1.6}px` }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+          </div>
+        </>
+      )}
 
       {/* Debug/Info Scale Label (Optional, visible when resizing) */}
       {isResizing && (

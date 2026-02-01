@@ -27,6 +27,8 @@ export const parseUrlType = (url: string): ScrapType => {
       return ScrapType.YOUTUBE;
     case 'spotify':
       return ScrapType.SPOTIFY;
+    case 'soundcloud':
+      return ScrapType.SOUNDCLOUD;
     case 'tiktok':
       return ScrapType.TIKTOK;
     case 'vimeo':

@@ -45,6 +45,7 @@ export const DEFAULT_THEMES: Theme[] = [
       cdButtonBg: '#ffe5f0',
       cdDotColor: '#c48b9f',
       textColorPrimary: '#5d4037',
+      centerShadowColor: '#8B7355',
     },
     uiTokens: {
       '--ui-primary-bg': '#f48fb1',
@@ -96,6 +97,7 @@ export const DEFAULT_THEMES: Theme[] = [
       cdButtonBg: '#b3e5fc',
       cdDotColor: '#0277bd',
       textColorPrimary: '#01579b',
+      centerShadowColor: '#4A7C8E',
     },
     uiTokens: {
       '--ui-primary-bg': '#29b6f6',
@@ -147,6 +149,7 @@ export const DEFAULT_THEMES: Theme[] = [
       cdButtonBg: '#ffe0b2',
       cdDotColor: '#bf360c',
       textColorPrimary: '#4e342e',
+      centerShadowColor: '#A0522D',
     },
     uiTokens: {
       '--ui-primary-bg': '#ff7043',
@@ -198,6 +201,7 @@ export const DEFAULT_THEMES: Theme[] = [
       cdButtonBg: '#cfd8dc',
       cdDotColor: '#546e7a',
       textColorPrimary: '#37474f',
+      centerShadowColor: '#708090',
     },
     uiTokens: {
       '--ui-primary-bg': '#78909c',
@@ -249,6 +253,7 @@ export const DEFAULT_THEMES: Theme[] = [
       cdButtonBg: '#eeeeee',
       cdDotColor: '#424242',
       textColorPrimary: '#212121',
+      centerShadowColor: '#696969',
     },
     uiTokens: {
       '--ui-primary-bg': '#424242',
@@ -300,6 +305,7 @@ export const DEFAULT_THEMES: Theme[] = [
       cdButtonBg: '#f8bbd0',
       cdDotColor: '#c2185b',
       textColorPrimary: '#880e4f',
+      centerShadowColor: '#D8769B',
     },
     uiTokens: {
       '--ui-primary-bg': '#ec407a',
@@ -351,6 +357,7 @@ export const DEFAULT_THEMES: Theme[] = [
       cdButtonBg: '#d7ccc8',
       cdDotColor: '#5d4037',
       textColorPrimary: '#3e2723',
+      centerShadowColor: '#5D4037',
     },
     uiTokens: {
       '--ui-primary-bg': '#8d6e63',
@@ -402,6 +409,7 @@ export const DEFAULT_THEMES: Theme[] = [
       cdButtonBg: '#fff9c4',
       cdDotColor: '#f9a825',
       textColorPrimary: '#f57f17',
+      centerShadowColor: '#DAA520',
     },
     uiTokens: {
       '--ui-primary-bg': '#ffeb3b',
@@ -453,6 +461,7 @@ export const DEFAULT_THEMES: Theme[] = [
       cdButtonBg: '#d7ccc8',
       cdDotColor: '#5d4037',
       textColorPrimary: '#3e2723',
+      centerShadowColor: '#8B7355',
     },
     uiTokens: {
       '--ui-primary-bg': '#8d6e63',
@@ -504,6 +513,7 @@ export const DEFAULT_THEMES: Theme[] = [
       cdButtonBg: '#7000ff',
       cdDotColor: '#00ffff',
       textColorPrimary: '#ffffff',
+      centerShadowColor: '#E91E63',
     },
     uiTokens: {
       '--ui-primary-bg': '#7000ff',

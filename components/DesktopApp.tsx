@@ -16,8 +16,9 @@ import { ItemRenderer } from './ItemRenderer';
 import YoutubeModal from './YoutubeModal';
 import CreationModal from './CreationModal';
 import ExportOptionsDialog, { ExportOptions } from './ExportOptionsDialog';
+import ExportPDFDialog from './ExportPDFDialog';
 import PaletteEditorModal from './PaletteEditorModal';
-import LinkDecorationPanel from './LinkDecorationPanel';
+// import LinkDecorationPanel from './LinkDecorationPanel'; // 제거됨
 import EmbedPreviewModal from './EmbedPreviewModal';
 import SettingsPanel from './panels/SettingsPanel';
 import UIPanel from './panels/UIPanel';
@@ -30,6 +31,7 @@ interface DesktopAppProps {
   currentLayout: LayoutType;
   currentDate: Date;
   textData: LayoutTextData;
+  setTextData: React.Dispatch<React.SetStateAction<LayoutTextData>>; // ✅ 백업/복원을 위해 추가
   diaryStyle: DiaryStyle;
   setDiaryStyle: React.Dispatch<React.SetStateAction<DiaryStyle>>;
   loading: boolean;
@@ -93,6 +95,9 @@ interface DesktopAppProps {
 const DesktopApp: React.FC<DesktopAppProps> = (props) => {
   // 툴바 숨김 상태 (캡처 시 사용)
   const [hideToolbar, setHideToolbar] = useState(false);
+  
+  // 텍스트 추가 모드
+  const [isAddingText, setIsAddingText] = useState(false);
   // ✅ 슬라이드 패널 (설정/UI 탭)
   const [activePanel, setActivePanel] = useState<'settings' | 'ui' | null>(null);
   // ✅ 선택된 아이템 (링크/임베드 꾸미기 MVP)
@@ -120,6 +125,7 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
   
   // 내보내기 옵션 다이얼로그
   const [showExportOptions, setShowExportOptions] = useState(false);
+  const [showPDFDialog, setShowPDFDialog] = useState(false);
   const [exportFormat, setExportFormat] = useState<'png' | 'pdf'>('png');
   
   // 팔레트 편집 모달
@@ -131,6 +137,7 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
     currentLayout,
     currentDate,
     textData,
+    setTextData,
     diaryStyle,
     setDiaryStyle,
     loading,
@@ -249,6 +256,13 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
   const handleExportWithOptions = async (options: ExportOptions) => {
     let snsEmbedElements: HTMLElement[] = [];
     let watermarkElement: HTMLDivElement | null = null;
+    
+    // PDF 내보내기 전 UI 상태 저장
+    const previousPanel = activePanel;
+    let sideTabs: Element | null = null;
+    let originalTabDisplay: string | undefined;
+    let notePagesWrapper: HTMLElement | null = null;
+    let originalStyle: any = null;
 
     try {
       // 1. 안전 모드: SNS 임베드 숨김
@@ -313,21 +327,81 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
         document.body.appendChild(watermarkElement);
       }
 
-      // 3. 툴바 숨김
+      // 3. Export 모드 활성화
+      console.log('📄 Activating export mode');
+      document.body.setAttribute('data-export-mode', 'true');
+
+      // 4. 설정 패널 숨김 (먼저 숨김)
+      console.log('📋 Hiding settings panel for PDF export');
+      setActivePanel(null);
+
+      // 5. 월별 탭 숨김 (오른쪽 JAN, FEB, MAR... 탭들)
+      sideTabs = document.querySelector('.absolute.top-8.-right-8');
+      if (sideTabs) {
+        originalTabDisplay = (sideTabs as HTMLElement).style.display;
+        (sideTabs as HTMLElement).style.display = 'none';
+        console.log('📋 Hidden side tabs for PDF export');
+      }
+
+      // 6. 툴바 숨김
       setHideToolbar(true);
 
-      // 4. 렌더링 완료 대기
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // 7. 노트 영역 찾기 및 위치 조정
+      notePagesWrapper = document.querySelector('[data-pages-wrapper]') as HTMLElement;
+      if (notePagesWrapper) {
+        // 원래 스타일 저장
+        originalStyle = {
+          position: notePagesWrapper.style.position,
+          top: notePagesWrapper.style.top,
+          left: notePagesWrapper.style.left,
+          width: notePagesWrapper.style.width,
+          height: notePagesWrapper.style.height,
+          transform: notePagesWrapper.style.transform,
+          zIndex: notePagesWrapper.style.zIndex,
+        };
+        
+        // 노트 영역을 화면 좌상단으로 이동 및 크기 고정
+        notePagesWrapper.style.position = 'fixed';
+        notePagesWrapper.style.top = '0';
+        notePagesWrapper.style.left = '0';
+        notePagesWrapper.style.width = '1100px';
+        notePagesWrapper.style.height = '820px';
+        notePagesWrapper.style.transform = 'none';
+        notePagesWrapper.style.zIndex = '999999';
+        console.log('📄 Note area positioned for export (1100x820)');
+      }
 
-      // 5. 내보내기 실행
+      // 8. 렌더링 완료 대기 (UI 변경사항 완전 반영 위해 시간 증가)
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // 9. 내보내기 실행
+      console.log('📄 Exporting PDF...');
       let result;
       // PNG export removed - only PDF supported
       result = await window.electron.exportPDF();
 
-      // 6. 툴바 다시 표시
+      // 10. Export 모드 해제
+      document.body.removeAttribute('data-export-mode');
+
+      // 11. 노트 영역 복원
+      if (notePagesWrapper && originalStyle) {
+        Object.assign(notePagesWrapper.style, originalStyle);
+        console.log('✅ Restored note area position');
+      }
+
+      // 12. 툴바 다시 표시
       setHideToolbar(false);
 
-      // 7. SNS 임베드 복원
+      // 13. 설정 패널 복원
+      setActivePanel(previousPanel);
+
+      // 14. 월별 탭 복원
+      if (sideTabs) {
+        (sideTabs as HTMLElement).style.display = originalTabDisplay || '';
+        console.log('✅ Restored side tabs');
+      }
+
+      // 15. SNS 임베드 복원
       if (options.safeMode) {
         snsEmbedElements.forEach(el => {
           el.style.display = '';
@@ -335,12 +409,12 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
         console.log(`✅ Restored ${snsEmbedElements.length} SNS embed(s)`);
       }
 
-      // 8. 워터마크 제거
+      // 16. 워터마크 제거
       if (watermarkElement) {
         watermarkElement.remove();
       }
 
-      // 9. 결과 표시
+      // 17. 결과 표시
       if (result.success && result.filePath) {
         const formatName = options.format.toUpperCase();
         const safeMode = options.safeMode ? ' (안전 모드)' : '';
@@ -352,9 +426,21 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
       }
     } catch (error) {
       console.error(error);
-      setHideToolbar(false);
       
-      // 에러 시에도 복원
+      // 에러 시에도 모든 UI 복원
+      document.body.removeAttribute('data-export-mode');
+      
+      if (notePagesWrapper && originalStyle) {
+        Object.assign(notePagesWrapper.style, originalStyle);
+      }
+      
+      setHideToolbar(false);
+      setActivePanel(previousPanel);
+      
+      if (sideTabs) {
+        (sideTabs as HTMLElement).style.display = originalTabDisplay || '';
+      }
+      
       if (options.safeMode) {
         snsEmbedElements.forEach(el => {
           el.style.display = '';
@@ -371,35 +457,186 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
 
   return (
     <div 
-      data-font={diaryStyle.fontId || 'noto'}
       className="w-screen flex flex-col items-center justify-center relative font-handwriting select-none bg-cover bg-center transition-all duration-500"
       style={{ 
-        height: 'var(--app-h)',
+        minHeight: '100vh',
+        height: 'auto',
         backgroundColor: 'var(--app-background)',
         backgroundImage: diaryStyle.backgroundImage ? `url(${diaryStyle.backgroundImage})` : undefined,
-        touchAction: 'pan-x pan-y'
+        touchAction: 'pan-x pan-y',
+        overflow: 'auto',
+        padding: '40px 20px',
       }}
     >
       
       {/* VIEWPORT CONTAINER */}
       <div 
         ref={viewportRef} 
-        className="relative w-full overflow-hidden"
+        className="relative w-full overflow-visible"
         style={{ 
           height: 'var(--app-h)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          background: 'transparent',
         }}
       >
+        {/* Settings Panel - Fixed Position (다이어리 밖) */}
+        {!isMobile && activePanel && (
+          <div 
+            className="border transition-transform duration-300 ease-in-out overflow-y-auto"
+            style={{
+              position: 'fixed',
+              left: 0,
+              top: '50%',
+              transform: activePanel ? 'translateY(-50%) translateX(0)' : 'translateY(-50%) translateX(-100%)',
+              width: '300px',
+              height: '80vh',
+              maxHeight: '800px',
+              background: (() => {
+                // 테마 배경색을 가져와서 투명도 적용
+                const themeColor = diaryStyle.uiPalette?.monthTabBgActive || '#fef3c7';
+                // hex를 rgba로 변환 (간단한 방법)
+                return themeColor + 'F5'; // F5 = 약 96% 불투명도
+              })(),
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              borderColor: 'var(--month-tab-border-color, var(--ui-stroke-color, #764737))',
+              color: 'var(--month-tab-text-color)',
+              borderTopLeftRadius: '12px',
+              borderTopRightRadius: '12px',
+              borderBottomLeftRadius: '12px',
+              borderBottomRightRadius: '12px',
+              boxShadow: '4px 0 20px rgba(0, 0, 0, 0.1)',
+              zIndex: 9999,
+            }}
+            ref={(el) => {
+              // Fixed panel ref
+            }}
+          >
+                {activePanel === 'settings' && (
+                  <SettingsPanel
+                    onClose={() => setActivePanel(null)}
+                    onExportPDF={() => {
+                      setShowPDFDialog(true);
+                    }}
+                    onOpenBackup={onOpenBackup}
+                    onManualSave={handleSaveLayout}
+                    compactMode={diaryStyle.compactMode}
+                    onCompactModeChange={(compact) => {
+                      setDiaryStyle(prev => ({ ...prev, compactMode: compact }));
+                    }}
+                    keyringFrame={diaryStyle.keyringFrame}
+                    onKeyringFrameChange={(frame) => {
+                      setDiaryStyle(prev => ({ ...prev, keyringFrame: frame }));
+                      setToastMsg('키링 참 테두리 변경됨!');
+                      setTimeout(() => setToastMsg(''), 1500);
+                    }}
+                    // ✅ 백업/복원을 위한 props 추가
+                    items={items}
+                    textData={textData}
+                    setTextData={setTextData}
+                    diaryStyle={diaryStyle}
+                    linkDockItems={linkDockItems}
+                    setItems={setItems}
+                    setDiaryStyle={setDiaryStyle}
+                    setLinkDockItems={setLinkDockItems}
+                  />
+                )}
+            {activePanel === 'ui' && (
+              <UIPanel
+                onClose={() => setActivePanel(null)}
+                onApplyTheme={(theme) => {
+                  setDiaryStyle(prev => ({
+                    ...prev,
+                    uiPalette: theme.uiPalette,
+                    uiTokens: theme.uiTokens,
+                  }));
+                  setToastMsg(`${theme.name} 테마 적용됨!`);
+                  setTimeout(() => setToastMsg(''), 1500);
+                }}
+                onShowAdvanced={() => {
+                  setShowPaletteEditor(true);
+                  setActivePanel(null);
+                }}
+                stickers={diaryStyle.stickers || []}
+                onStickerAdd={(sticker) => {
+                  setDiaryStyle(prev => ({
+                    ...prev,
+                    stickers: [...(prev.stickers || []), sticker],
+                  }));
+                  setToastMsg('스티커 추가됨!');
+                  setTimeout(() => setToastMsg(''), 1500);
+                }}
+                onStickerDelete={(stickerId) => {
+                  setDiaryStyle(prev => ({
+                    ...prev,
+                    stickers: (prev.stickers || []).filter(s => s.id !== stickerId),
+                  }));
+                  setToastMsg('스티커 삭제됨!');
+                  setTimeout(() => setToastMsg(''), 1500);
+                }}
+              />
+            )}
+          </div>
+        )}
+
         {/* PLANNER CONTAINER */}
         <div 
           className="relative"
           style={{
             width: `${designWidth}px`,
             height: `${DESIGN_HEIGHT}px`,
-            transform: `scale(${scale})`,
+            transform: activePanel 
+              ? `scale(${scale}) translateX(150px)` 
+              : `scale(${scale}) translateX(0)`,
             transformOrigin: 'center',
+            overflow: 'visible',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+          onMouseEnter={() => {
+            // 다이어리 영역에 마우스 진입 시 클릭 활성화
+            if (window.electron?.send) {
+              window.electron.send('set-ignore-mouse-events', false);
+            }
+          }}
+          onMouseLeave={() => {
+            // 투명 영역으로 마우스 이동 시 클릭 관통
+            if (window.electron?.send) {
+              window.electron.send('set-ignore-mouse-events', true, { forward: true });
+            }
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            
+            const stickerType = e.dataTransfer.getData('sticker-type');
+            
+            if (stickerType === 'default') {
+              // 기본 스티커
+              const url = e.dataTransfer.getData('sticker-url');
+              const name = e.dataTransfer.getData('sticker-name');
+              
+              handleDecoration(ScrapType.STICKER, {
+                title: name,
+                url: '',
+                stickerConfig: { imageUrl: url }
+              });
+            } else if (stickerType === 'uploaded') {
+              // 업로드한 스티커
+              const filePath = e.dataTransfer.getData('sticker-path');
+              const name = e.dataTransfer.getData('sticker-name');
+              const thumbnail = e.dataTransfer.getData('sticker-thumbnail');
+              
+              handleDecoration(ScrapType.STICKER, {
+                title: name,
+                url: '',
+                stickerConfig: { imageUrl: thumbnail || filePath }
+              });
+            }
           }}
         >
           
@@ -412,14 +649,105 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
             
             {/* Paper Texture & Layout Render */}
             <div 
-              ref={bookRef}
+              ref={(el) => {
+                if (bookRef) bookRef.current = el;
+              }}
               className="flex-1 relative"
+              style={{
+                cursor: isAddingText ? 'text' : 'default',
+                userSelect: 'none',
+              }}
               onMouseDown={(e) => {
-                // 다이어리 여백 드래그 (카드 영역 제외)
-                if (!window.electron?.send) return;
-                
+                // 공통 target 변수
                 const target = e.target as HTMLElement;
-                // 카드, 버튼, 입력 필드 등은 드래그하지 않음
+                
+                // 🎯 핸들 클릭인 경우 DesktopApp 핸들러 무시 (DraggableItem에서 처리)
+                const handleType = target.closest('[data-handle-type]')?.getAttribute('data-handle-type');
+                if (handleType === 'rotate' || handleType === 'resize') {
+                  return;
+                }
+                
+                // ✅ 스크랩 아이템이 아닌 곳 클릭 시 선택 해제
+                const isScrapItem = !!target.closest('[data-scrap-item]');
+                console.log('🖱️ 클릭 체크:', { isScrapItem, selectedItemId, target: target.className });
+                
+                if (!isScrapItem && selectedItemId) {
+                  console.log('✅ 배경 클릭 - 선택 해제 실행');
+                  setSelectedItemId(null);
+                }
+                
+                // ✅ 텍스트 추가 모드일 때
+                if (isAddingText) {
+                  
+                  // 드래그 가능한 아이템을 클릭한 경우 텍스트 추가 취소
+                  if (target.closest('[data-draggable="true"]') || target.closest('button') || target.closest('input') || target.closest('textarea')) {
+                    setIsAddingText(false);
+                    setToastMsg('');
+                    return;
+                  }
+                  
+                  // 그 외의 모든 경우 (배경 포함) 텍스트 추가
+                  e.preventDefault();
+                  e.stopPropagation();
+                  
+                  // 클릭 위치 계산 (스케일 고려)
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = (e.clientX - rect.left) / scale;
+                  const y = (e.clientY - rect.top) / scale;
+                  
+                  console.log('📝 텍스트 아이템 생성:', { x, y, scale });
+                  
+                  // 텍스트 아이템 생성
+                  const newId = crypto.randomUUID();
+                  const dateKey = currentLayout === 'scrap_page' 
+                    ? 'SCRAP' 
+                    : `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+                  const pageSide = x >= (designWidth / 2) ? 'right' : 'left';
+                  
+                  const newItem: ScrapItem = {
+                    id: newId,
+                    type: 'NOTE' as any,
+                    position: {
+                      x,
+                      y,
+                      z: Date.now(),
+                      rotation: 0,
+                      scale: 1
+                    },
+                    metadata: {
+                      title: "Text Note",
+                      subtitle: "",
+                      url: "",
+                      noteConfig: {
+                        text: "",
+                        fontSize: '14px',
+                        isEditing: true
+                      }
+                    },
+                    diaryDate: dateKey,
+                    pageSide,
+                    createdAt: Date.now()
+                  };
+                  
+                  console.log('✅ 텍스트 아이템 생성 완료:', newItem);
+                  
+                  setItems(prev => {
+                    const updated = [...prev, newItem];
+                    console.log('📦 아이템 목록 업데이트:', updated.length);
+                    return updated;
+                  });
+                  setIsAddingText(false);
+                  setToastMsg('');
+                  return;
+                }
+                
+                // ✅ 다이어리 배경은 드래그 불가능 (카드만 드래그 가능)
+                // 배경만 클릭한 경우 - 아무것도 하지 않음
+                if (e.target === e.currentTarget || target.closest('.flex-1.relative') === e.currentTarget) {
+                  return;
+                }
+                
+                // 카드, 버튼, 입력 필드 등은 각자 처리
                 if (
                   target.closest('[data-scrap-item]') ||
                   target.closest('button') ||
@@ -431,22 +759,6 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                 ) {
                   return;
                 }
-                
-                e.preventDefault();
-                window.electron.send('window:dragStart', e.screenX, e.screenY);
-                
-                const handleMouseMove = (moveEvent: MouseEvent) => {
-                  window.electron.send?.('window:dragMove', moveEvent.screenX, moveEvent.screenY);
-                };
-                
-                const handleMouseUp = () => {
-                  window.electron.send?.('window:dragEnd');
-                  document.removeEventListener('mousemove', handleMouseMove);
-                  document.removeEventListener('mouseup', handleMouseUp);
-                };
-                
-                document.addEventListener('mousemove', handleMouseMove);
-                document.addEventListener('mouseup', handleMouseUp);
               }}
             >
               {/* LINK BAR */}
@@ -454,7 +766,7 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                 <UrlInput 
                   onScrap={handleScrap} 
                   onUpload={handleUpload} 
-                  onCreateOpen={() => setShowCreationModal(true)} 
+                  onCreateOpen={undefined}
                   isLoading={loading}
                   className="absolute top-5 right-8" 
                 />
@@ -503,12 +815,16 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                         }
                       }}
                       onBringToFront={bringToFront}
-                      onSelect={(id) => setSelectedItemId(id)}
+                      onSelect={(id) => {
+                        setSelectedItemId(id);
+                      }}
                       onDelete={handleDeleteItem}
                       onSetMainItem={handleSetMainItem}
                       snapToGrid={currentLayout === 'scrap_page' || (currentLayout === 'free' && snapToGridEnabled)}
+                      hideControls={false}
+                      isSelected={selectedItemId === item.id}
                     >
-                      <ItemRenderer item={item} onUpdateMetadata={updateMetadata} />
+                      <ItemRenderer item={item} onUpdateMetadata={updateMetadata} onDeleteItem={handleDeleteItem} onUpdateText={handleUpdateText} textData={textData} />
                     </DraggableItem>
                   )}
                 >
@@ -556,6 +872,7 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                           setToastMsg(`${year}년`);
                           setTimeout(() => setToastMsg(''), 1000);
                         }}
+                        compactMode={diaryStyle.compactMode}
                         linkDockItems={linkDockItems}
                         setLinkDockItems={setLinkDockItems}
                         onInsertLinksToDate={onInsertLinksToDate}
@@ -579,7 +896,7 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
 
           {/* Side Tabs (Indices) - Desktop only */}
           {!isMobile && (
-            <div className="absolute top-8 -right-8 flex flex-col gap-1 z-0 relative">
+            <div className="absolute top-8 -right-8 flex flex-col gap-1 z-0">
               {MONTHS.map((m, i) => (
                 <button 
                   key={m}
@@ -587,8 +904,8 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                   {...((currentLayout !== 'scrap_page' && currentDate.getMonth() === i) ? { 'data-month-tab-active': 'true' } : {})}
                   onClick={() => handleMonthSelect(i)}
                   className={`
-                    w-12 h-10 rounded-r-md flex items-center pl-2 text-[10px] font-bold tracking-widest border border-l-0 transition-transform hover:translate-x-1 active:scale-95 touch-manipulation
-                    ${(currentLayout !== 'scrap_page' && currentDate.getMonth() === i) ? 'translate-x-1 font-black' : ''}
+                    w-12 h-10 rounded-r-md flex items-center pl-4 justify-start text-[10px] font-bold tracking-widest border border-l-0 transition-transform active:scale-95 touch-manipulation
+                    ${(currentLayout !== 'scrap_page' && currentDate.getMonth() === i) ? 'translate-x-0 font-black' : '-translate-x-1 hover:translate-x-0'}
                   `}
                   style={{
                     backgroundColor: (currentLayout !== 'scrap_page' && currentDate.getMonth() === i) ? 'var(--month-tab-bg-active)' : 'var(--month-tab-bg)',
@@ -609,8 +926,8 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                   setActivePanel(null); // 패널 닫기
                 }}
                 className={`
-                  w-12 h-12 rounded-r-md flex items-center justify-center border border-l-0 transition-transform hover:translate-x-1 active:scale-95 mt-2 touch-manipulation
-                  ${currentLayout === 'scrap_page' ? 'translate-x-1' : ''}
+                  w-12 h-12 rounded-r-md flex items-center justify-center border border-l-0 transition-transform active:scale-95 mt-2 touch-manipulation
+                  ${currentLayout === 'scrap_page' ? 'translate-x-0' : '-translate-x-1 hover:translate-x-0'}
                 `}
                 style={{
                   backgroundColor: currentLayout === 'scrap_page' ? 'var(--month-tab-bg-active)' : 'var(--month-tab-bg)',
@@ -628,10 +945,13 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
               <button 
                 data-month-tab
                 {...(activePanel === 'settings' ? { 'data-month-tab-active': 'true' } : {})}
-                onClick={() => setActivePanel(activePanel === 'settings' ? null : 'settings')}
+                onClick={() => {
+                  const newPanel = activePanel === 'settings' ? null : 'settings';
+                  setActivePanel(newPanel);
+                }}
                 className={`
-                  w-12 h-12 rounded-r-md flex items-center justify-center border border-l-0 transition-transform hover:translate-x-1 active:scale-95 mt-2 touch-manipulation
-                  ${activePanel === 'settings' ? 'translate-x-1' : ''}
+                  w-12 h-12 rounded-r-md flex items-center justify-center border border-l-0 transition-transform active:scale-95 mt-2 touch-manipulation
+                  ${activePanel === 'settings' ? 'translate-x-0' : '-translate-x-1 hover:translate-x-0'}
                 `}
                 style={{
                   backgroundColor: activePanel === 'settings' ? 'var(--month-tab-bg-active)' : 'var(--month-tab-bg)',
@@ -649,10 +969,13 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
               <button 
                 data-month-tab
                 {...(activePanel === 'ui' ? { 'data-month-tab-active': 'true' } : {})}
-                onClick={() => setActivePanel(activePanel === 'ui' ? null : 'ui')}
+                onClick={() => {
+                  const newPanel = activePanel === 'ui' ? null : 'ui';
+                  setActivePanel(newPanel);
+                }}
                 className={`
-                  w-12 h-12 rounded-r-md flex items-center justify-center border border-l-0 transition-transform hover:translate-x-1 active:scale-95 mt-1 touch-manipulation
-                  ${activePanel === 'ui' ? 'translate-x-1' : ''}
+                  w-12 h-12 rounded-r-md flex items-center justify-center border border-l-0 transition-transform active:scale-95 mt-1 touch-manipulation
+                  ${activePanel === 'ui' ? 'translate-x-0' : '-translate-x-1 hover:translate-x-0'}
                 `}
                 style={{
                   backgroundColor: activePanel === 'ui' ? 'var(--month-tab-bg-active)' : 'var(--month-tab-bg)',
@@ -665,68 +988,6 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                   <path fillRule="evenodd" d="M20.599 1.5c-.376 0-.743.111-1.055.32l-5.08 3.385a18.747 18.747 0 00-3.471 2.987 10.04 10.04 0 014.815 4.815 18.748 18.748 0 002.987-3.472l3.386-5.079A1.902 1.902 0 0020.599 1.5zm-8.3 14.025a18.76 18.76 0 001.896-1.207 8.026 8.026 0 00-4.513-4.513A18.75 18.75 0 008.475 11.7l-.278.5a5.26 5.26 0 013.601 3.602l.502-.278zM6.75 13.5A3.75 3.75 0 003 17.25a1.5 1.5 0 01-1.601 1.497.75.75 0 00-.7 1.123 5.25 5.25 0 009.8-2.62 3.75 3.75 0 00-3.75-3.75z" clipRule="evenodd" />
                 </svg>
               </button>
-
-              {/* Slide Panel - 월별 탭 위에서 슬라이드 */}
-              {activePanel && (
-                <div 
-                  className={`absolute top-0 w-[320px] rounded-r-md border border-l-0 shadow-xl transition-all duration-300 ease-in-out overflow-y-auto ${
-                    activePanel ? 'right-[-320px]' : 'right-full'
-                  }`}
-                  style={{
-                    backgroundColor: 'var(--month-tab-bg-active)',
-                    borderColor: 'var(--month-tab-border-color, var(--ui-stroke-color, #764737))',
-                    color: 'var(--month-tab-text-color)',
-                    height: `${DESIGN_HEIGHT}px`,
-                  }}
-                >
-                  {activePanel === 'settings' && (
-                    <SettingsPanel
-                      onClose={() => setActivePanel(null)}
-                      onExportPDF={() => {
-                        setExportFormat('pdf');
-                        setShowExportOptions(true);
-                      }}
-                      onOpenBackup={() => setShowBackupManager(true)}
-                      onManualSave={handleSaveLayout}
-                    />
-                  )}
-                  {activePanel === 'ui' && (
-                    <UIPanel
-                      onClose={() => setActivePanel(null)}
-                      onApplyTheme={(theme) => {
-                        setDiaryStyle(prev => ({
-                          ...prev,
-                          uiPalette: theme.uiPalette,
-                          uiTokens: theme.uiTokens,
-                        }));
-                        setToastMsg(`${theme.name} 테마 적용됨!`);
-                        setTimeout(() => setToastMsg(''), 1500);
-                      }}
-                      onShowAdvanced={() => {
-                        setShowPaletteEditor(true);
-                        setActivePanel(null);
-                      }}
-                      stickers={diaryStyle.stickers || []}
-                      onStickerAdd={(sticker) => {
-                        setDiaryStyle(prev => ({
-                          ...prev,
-                          stickers: [...(prev.stickers || []), sticker],
-                        }));
-                        setToastMsg('스티커 추가됨!');
-                        setTimeout(() => setToastMsg(''), 1500);
-                      }}
-                      onStickerDelete={(stickerId) => {
-                        setDiaryStyle(prev => ({
-                          ...prev,
-                          stickers: (prev.stickers || []).filter(s => s.id !== stickerId),
-                        }));
-                        setToastMsg('스티커 삭제됨!');
-                        setTimeout(() => setToastMsg(''), 1500);
-                      }}
-                    />
-                  )}
-                </div>
-              )}
             </div>
           )}
 
@@ -734,13 +995,184 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
           {!isMobile && (
             <div className="absolute top-10 -left-2 z-50">
               <Keyring 
-                charm={diaryStyle.keyring} 
+                charm={diaryStyle.keyring}
+                frameType={diaryStyle.keyringFrame}
+                charmImage={diaryStyle.keyringImage}
                 onCharmChange={(newCharm) => {
                   setDiaryStyle(prev => ({ ...prev, keyring: newCharm }));
                   setToastMsg('키링 변경됨!');
                   setTimeout(() => setToastMsg(''), 1500);
                 }}
+                onCharmImageChange={(newImage) => {
+                  setDiaryStyle(prev => ({ ...prev, keyringImage: newImage }));
+                  setToastMsg('키링 사진 변경됨!');
+                  setTimeout(() => setToastMsg(''), 1500);
+                }}
               />
+            </div>
+          )}
+
+          {/* ⭐ 오른쪽 Diary Drag Handle (별 모양) - Desktop only */}
+          {!isMobile && window.electron?.send && (
+            <div 
+              className="diary-drag-handle"
+              style={{
+                position: 'absolute',
+                right: '-50px',
+                bottom: '20px',
+                width: '36px',
+                height: '36px',
+                cursor: 'grab',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                zIndex: 1000,
+                userSelect: 'none',
+                animation: 'star-glow 2.5s ease-in-out infinite',
+              }}
+              onMouseEnter={(e) => {
+                const el = e.currentTarget;
+                el.style.transform = 'scale(1.25) rotate(36deg)';
+                el.style.animation = 'none';
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget;
+                if (!el.classList.contains('dragging')) {
+                  el.style.transform = 'scale(1) rotate(0deg)';
+                  el.style.animation = 'star-glow 2.5s ease-in-out infinite';
+                }
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const el = e.currentTarget;
+                el.classList.add('dragging');
+                el.style.cursor = 'grabbing';
+                el.style.transform = 'scale(1.2) rotate(72deg)';
+                el.style.animation = 'none';
+                
+                window.electron.send('window:dragStart', e.screenX, e.screenY);
+                console.log('⭐ 오른쪽 별 핸들 드래그 시작');
+                
+                const handleMouseMove = (moveEvent: MouseEvent) => {
+                  window.electron.send?.('window:dragMove', moveEvent.screenX, moveEvent.screenY);
+                };
+                
+                const handleMouseUp = () => {
+                  window.electron.send?.('window:dragEnd');
+                  console.log('⭐ 오른쪽 별 핸들 드래그 종료');
+                  
+                  el.classList.remove('dragging');
+                  el.style.cursor = 'grab';
+                  el.style.transform = 'scale(1) rotate(0deg)';
+                  el.style.animation = 'star-glow 2.5s ease-in-out infinite';
+                  
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                };
+                
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+              }}
+              title="다이어리를 드래그하세요"
+            >
+              {/* 완벽한 5꽃잎 별 */}
+              <svg width="40" height="40" viewBox="0 0 40 40" fill="none" style={{ pointerEvents: 'none' }}>
+                <path 
+                  className="star-path"
+                  d="M 20,5 C 21,5 22,9 23,12 C 24,15 27,16 30,17 C 33,18 35,20 34,21 C 33,22 30,24 27,25 C 24,26 23,30 22,33 C 21,36 20,37 20,37 C 20,37 19,36 18,33 C 17,30 16,26 13,25 C 10,24 7,22 6,21 C 5,20 7,18 10,17 C 13,16 16,15 17,12 C 18,9 19,5 20,5 Z"
+                  fill="none"
+                  stroke="var(--month-tab-border-color, #D4C5B9)"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  style={{
+                    transition: 'all 0.25s',
+                    filter: 'drop-shadow(0 2px 4px rgba(212, 197, 185, 0.2))',
+                  }}
+                />
+              </svg>
+            </div>
+          )}
+
+          {/* ⭐ 왼쪽 Diary Drag Handle (별 모양) - Desktop only */}
+          {!isMobile && window.electron?.send && (
+            <div 
+              className="diary-drag-handle diary-drag-handle-left"
+              style={{
+                position: 'absolute',
+                left: '-50px',
+                bottom: '20px',
+                width: '36px',
+                height: '36px',
+                cursor: 'grab',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+                zIndex: 1000,
+                userSelect: 'none',
+                animation: 'star-glow 2.5s ease-in-out infinite',
+              }}
+              onMouseEnter={(e) => {
+                const el = e.currentTarget;
+                el.style.transform = 'scale(1.25) rotate(36deg)';
+                el.style.animation = 'none';
+              }}
+              onMouseLeave={(e) => {
+                const el = e.currentTarget;
+                if (!el.classList.contains('dragging')) {
+                  el.style.transform = 'scale(1) rotate(0deg)';
+                  el.style.animation = 'star-glow 2.5s ease-in-out infinite';
+                }
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const el = e.currentTarget;
+                el.classList.add('dragging');
+                el.style.cursor = 'grabbing';
+                el.style.transform = 'scale(1.2) rotate(72deg)';
+                el.style.animation = 'none';
+                
+                window.electron.send('window:dragStart', e.screenX, e.screenY);
+                console.log('⭐ 왼쪽 별 핸들 드래그 시작');
+                
+                const handleMouseMove = (moveEvent: MouseEvent) => {
+                  window.electron.send?.('window:dragMove', moveEvent.screenX, moveEvent.screenY);
+                };
+                
+                const handleMouseUp = () => {
+                  window.electron.send?.('window:dragEnd');
+                  console.log('⭐ 왼쪽 별 핸들 드래그 종료');
+                  
+                  el.classList.remove('dragging');
+                  el.style.cursor = 'grab';
+                  el.style.transform = 'scale(1) rotate(0deg)';
+                  el.style.animation = 'star-glow 2.5s ease-in-out infinite';
+                  
+                  document.removeEventListener('mousemove', handleMouseMove);
+                  document.removeEventListener('mouseup', handleMouseUp);
+                };
+                
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+              }}
+              title="다이어리를 드래그하세요"
+            >
+              {/* 완벽한 5꽃잎 별 */}
+              <svg width="40" height="40" viewBox="0 0 40 40" fill="none" style={{ pointerEvents: 'none' }}>
+                <path 
+                  className="star-path"
+                  d="M 20,5 C 21,5 22,9 23,12 C 24,15 27,16 30,17 C 33,18 35,20 34,21 C 33,22 30,24 27,25 C 24,26 23,30 22,33 C 21,36 20,37 20,37 C 20,37 19,36 18,33 C 17,30 16,26 13,25 C 10,24 7,22 6,21 C 5,20 7,18 10,17 C 13,16 16,15 17,12 C 18,9 19,5 20,5 Z"
+                  fill="none"
+                  stroke="var(--month-tab-border-color, #D4C5B9)"
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                  style={{
+                    transition: 'all 0.25s',
+                    filter: 'drop-shadow(0 2px 4px rgba(212, 197, 185, 0.2))',
+                  }}
+                />
+              </svg>
             </div>
           )}
 
@@ -770,14 +1202,7 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
       {pendingYoutube && <YoutubeModal onConfirm={confirmYoutube} onCancel={() => setPendingYoutube(null)} />}
       {showCreationModal && <CreationModal onConfirm={handleCreateManual} onCancel={() => setShowCreationModal(false)} />}
 
-      {/* 🎀 링크/임베드 꾸미기 패널 (선택된 아이템 기준) */}
-      {selectedItem && isLinkEmbedLikeSelected && (
-        <LinkDecorationPanel
-          item={selectedItem}
-          onClose={() => setSelectedItemId(null)}
-          onChangeDecoration={(next) => updateMetadata(selectedItem.id, { decoration: next })}
-        />
-      )}
+      {/* 링크/임베드 꾸미기 패널 제거됨 */}
 
       {/* 🔎 링크/임베드 미리보기 모달 */}
       <EmbedPreviewModal
@@ -793,6 +1218,24 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
         onClose={() => setShowExportOptions(false)}
         onExport={handleExportWithOptions}
       />
+      
+      {/* PDF Export Dialog */}
+      {showPDFDialog && (
+        <ExportPDFDialog
+          onConfirm={async () => {
+            setShowPDFDialog(false);
+            if (window.electron) {
+              const result = await window.electron.exportPDF();
+              if (result.success) {
+                alert(`PDF가 저장되었습니다!\n${result.filePath}`);
+              } else if (!result.canceled) {
+                alert(`PDF 저장 실패: ${result.error}`);
+              }
+            }
+          }}
+          onCancel={() => setShowPDFDialog(false)}
+        />
+      )}
       
       {/* Palette Editor Modal */}
       <PaletteEditorModal

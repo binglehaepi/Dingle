@@ -21,6 +21,8 @@ export type OhaasaResult = {
   translated?: boolean;
   translationError?: boolean;
   sourceUrl: string;
+  luckyColor?: string; // 한국어 행운 컬러
+  luckyColorJa?: string; // 일본어 원본
 };
 
 export const OHAASA_SOURCE_URL = 'https://www.asahi.co.jp/ohaasa/week/horoscope';
@@ -69,6 +71,55 @@ export async function fetchOhaasa(params: { date: string; sign: OhaasaSignId }):
   const res = await fetch(`/api/ohaasa?${qs.toString()}`);
   if (!res.ok) throw new Error(`ohaasa api failed: ${res.status}`);
   return (await res.json()) as OhaasaResult;
+}
+
+// 일본어 컬러명 → 한국어 번역
+export const COLOR_TRANSLATIONS: Record<string, string> = {
+  '赤': '빨강',
+  '青': '파랑',
+  '黄色': '노랑',
+  '緑': '초록',
+  '白': '흰색',
+  '黒': '검정',
+  'ピンク': '분홍',
+  'オレンジ': '주황',
+  '紫': '보라',
+  '茶色': '갈색',
+  '金': '금색',
+  '銀': '은색',
+  'グレー': '회색',
+  'ベージュ': '베이지',
+  '水色': '하늘색',
+  'レモンイエロー': '레몬색',
+  'ラベンダー': '라벤더',
+};
+
+export function translateColor(jaColor: string): string {
+  return COLOR_TRANSLATIONS[jaColor] || jaColor;
+}
+
+// 컬러명 → HEX 색상 코드 매핑
+export function getColorHex(koColor: string): string {
+  const colorMap: Record<string, string> = {
+    '빨강': '#FF0000',
+    '파랑': '#0000FF',
+    '노랑': '#FFD700',
+    '초록': '#00FF00',
+    '흰색': '#FFFFFF',
+    '검정': '#000000',
+    '분홍': '#FFB6C1',
+    '주황': '#FFA500',
+    '보라': '#800080',
+    '갈색': '#8B4513',
+    '금색': '#FFD700',
+    '은색': '#C0C0C0',
+    '회색': '#808080',
+    '베이지': '#F5F5DC',
+    '하늘색': '#87CEEB',
+    '레몬색': '#FFF44F',
+    '라벤더': '#E6E6FA',
+  };
+  return colorMap[koColor] || '#CCCCCC';
 }
 
 

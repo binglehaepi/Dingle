@@ -50,6 +50,7 @@ const VideoPlayerObject: React.FC<VideoPlayerObjectProps> = ({ data }) => {
             <YouTube 
                 videoId={videoId}
                 opts={{
+                    host: 'https://www.youtube.com',
                     width: '100%',
                     height: '100%',
                     playerVars: {

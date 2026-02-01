@@ -27,6 +27,13 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        hmr: {
+          overlay: true, // HMR 오류 오버레이
+        },
+        // 캐시 무효화 헤더 추가 (개발 모드 캐시 문제 해결)
+        headers: {
+          'Cache-Control': 'no-store',
+        },
       },
       plugins: [
         react(),

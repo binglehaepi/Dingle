@@ -4,6 +4,7 @@ interface UrlInputProps {
   onScrap: (url: string) => void;
   onUpload: (file: File) => void;
   onCreateOpen: () => void;
+  onAddText?: () => void; // 단순 텍스트 추가
   isLoading: boolean;
   className?: string; // Allow absolute positioning from parent
 }

@@ -6,6 +6,7 @@ export enum ScrapType {
   BOOK = 'book',
   YOUTUBE = 'youtube',
   SPOTIFY = 'spotify',
+  SOUNDCLOUD = 'soundcloud',
   TIKTOK = 'tiktok',
   VIMEO = 'vimeo',
   FASHION = 'fashion',
@@ -227,6 +228,9 @@ export interface UIPalette {
 
   // ===== CD 플레이어 =====
   cdWidgetBackground: UIColorHex;               // CD 위젯 배경
+  
+  // ===== 센터 그림자 =====
+  centerShadowColor?: UIColorHex;               // 다이어리 중앙 그림자 색상
   cdDiscColor: UIColorHex;                      // 디스크 색
   cdScreenBg: UIColorHex;                       // 스크린 배경
   cdButtonBg: UIColorHex;                       // 버튼 배경
@@ -445,11 +449,16 @@ export interface Sticker {
   createdAt: number;
 }
 
+// Keyring Frame Types
+export type KeyringFrameType = 'rounded-square' | 'heart' | 'circle';
+
 // Global Style Preferences
 export interface DiaryStyle {
   coverColor: string;
   coverPattern: 'quilt' | 'leather' | 'denim' | 'fur';
-  keyring: string; // emoji char
+  keyring: string; // emoji char or image URL
+  keyringFrame?: KeyringFrameType; // 키링 참 테두리 모양 (기본값: 'rounded-square')
+  keyringImage?: string; // 키링 참 안에 넣을 이미지 (DataURL)
   backgroundImage?: string; // Custom Desk Image
   fontId?: FontId; // 폰트 ID (기본값: 'noto')
   uiPalette?: UIPalette; // 사용자 정의 UI 색상 팔레트
@@ -471,4 +480,7 @@ export interface DiaryStyle {
   // - 다른 화면(weekly/free/scrap_page)은 전역 uiPalette.notePaperBackground를 그대로 사용.
   dashboardUseNotePaperOverride?: boolean; // 기본 false
   dashboardNotePaperBackground?: string; // hex/rgba 모두 허용
+  
+  // ✅ 다이어리 크기 모드
+  compactMode?: boolean; // true = 900px (컴팩트), false/undefined = 1100px (편안함)
 }

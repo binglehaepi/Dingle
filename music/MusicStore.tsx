@@ -7,6 +7,7 @@ export type MusicState = {
   videoId: string | null;
   isPlaying: boolean;
   volume: number; // 0~100
+  errorMessage: string | null;
 };
 
 type MusicActions = {
@@ -15,6 +16,7 @@ type MusicActions = {
   pause: () => void;
   toggle: () => void;
   setVolume: (volume: number) => void;
+  setError: (message: string | null) => void;
 };
 
 export type MusicStore = MusicState & MusicActions;
@@ -26,6 +28,7 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
   const [videoId, setVideoId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, _setVolume] = useState(60);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // keep stable actions
   const setTrack = useCallback((nextVideoId: string | null) => {
@@ -34,7 +37,11 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     if (!nextVideoId) setIsPlaying(false);
   }, []);
 
-  const play = useCallback(() => setIsPlaying(true), []);
+  const play = useCallback(() => {
+    setErrorMessage(null); // 새로운 재생 시도 시 오류 초기화
+    setIsPlaying(true);
+  }, []);
+  
   const pause = useCallback(() => setIsPlaying(false), []);
   const toggle = useCallback(() => setIsPlaying((p) => !p), []);
 
@@ -43,9 +50,13 @@ export function MusicProvider({ children }: { children: React.ReactNode }) {
     _setVolume(clamped);
   }, []);
 
+  const setError = useCallback((message: string | null) => {
+    setErrorMessage(message);
+  }, []);
+
   const store = useMemo<MusicStore>(() => {
-    return { provider, videoId, isPlaying, volume, setTrack, play, pause, toggle, setVolume };
-  }, [provider, videoId, isPlaying, volume, setTrack, play, pause, toggle, setVolume]);
+    return { provider, videoId, isPlaying, volume, errorMessage, setTrack, play, pause, toggle, setVolume, setError };
+  }, [provider, videoId, isPlaying, volume, errorMessage, setTrack, play, pause, toggle, setVolume, setError]);
 
   return <MusicContext.Provider value={store}>{children}</MusicContext.Provider>;
 }

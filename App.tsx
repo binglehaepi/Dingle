@@ -2,7 +2,6 @@ import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { STORAGE_KEY, TEXT_DATA_KEY, STYLE_PREF_KEY, LINK_DOCK_KEY } from './constants/appConstants';
 import { UpdateNotification } from './components/UpdateNotification';
 import AppMain from './AppMain';
-import DiaryManager from './components/DiaryManager';
 import { MusicProvider } from './music/MusicStore';
 
 type WindowMode = 'app' | 'overlay';
@@ -167,13 +166,11 @@ const App: React.FC = () => {
   if (windowMode === 'unknown') return null;
   if (windowMode === 'overlay') return <OverlayModeView />;
   
-  // app 모드: 다이어리 관리자 표시
+  // 단일 다이어리 모드: app 모드도 AppMain 표시 (DiaryManager 제거)
   return (
     <>
       <UpdateNotification />
-      <Suspense fallback={null}>
-        <DiaryManager />
-      </Suspense>
+      <OverlayModeView />
     </>
   );
 };

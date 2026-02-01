@@ -4,8 +4,8 @@
  * Phase 3: Electron 파일 시스템으로 전환
  */
 
-import { ScrapItem, LayoutTextData, DiaryStyle } from '../types';
-import { STORAGE_KEY, TEXT_DATA_KEY, STYLE_PREF_KEY } from '../constants/appConstants';
+import { ScrapItem, LayoutTextData, DiaryStyle, LinkDockItem } from '../types';
+import { STORAGE_KEY, TEXT_DATA_KEY, STYLE_PREF_KEY, LINK_DOCK_KEY } from '../constants/appConstants';
 import { migrateDiaryStyle } from '../utils/theme';
 import { migrateScrapItemsDecoration } from '../utils/itemMigrations';
 import type * as React from 'react';
@@ -23,6 +23,7 @@ export interface BackupData {
   items: ScrapItem[];
   textData: LayoutTextData;
   stylePref: DiaryStyle;
+  linkDockItems?: LinkDockItem[]; // ✅ 링크 도크 아이템 추가
   
   // 메타데이터
   itemCount: number;
@@ -36,16 +37,17 @@ export interface BackupData {
 export async function exportToJSON(
   items: ScrapItem[],
   textData: LayoutTextData,
-  stylePref: DiaryStyle
+  stylePref: DiaryStyle,
+  linkDockItems: LinkDockItem[] = []
 ): Promise<void> {
   try {
-    const { backup, finalJson } = createBackupJSON(items, textData, stylePref);
+    const { backup, finalJson } = createBackupJSON(items, textData, stylePref, linkDockItems);
 
-    // 파일명 생성
+    // 파일명 생성 - .dingle 확장자 사용
     const date = new Date();
-    const dateStr = date.toISOString().slice(0, 10); // 2025-12-18
-    const timeStr = date.toTimeString().slice(0, 5).replace(':', ''); // 1305
-    const filename = `ScrapDiary_${dateStr}_${timeStr}.json`;
+    const dateStr = date.toISOString().slice(0, 10); // 2026-02-01
+    const timeStr = date.toTimeString().slice(0, 8).replace(/:/g, ''); // 143000
+    const filename = `Dingle_백업_${dateStr}_${timeStr}.dingle`;
 
     // 브라우저 다운로드
     downloadJSON(finalJson, filename);
@@ -66,15 +68,17 @@ export async function exportToJSON(
 export function createBackupJSON(
   items: ScrapItem[],
   textData: LayoutTextData,
-  stylePref: DiaryStyle
+  stylePref: DiaryStyle,
+  linkDockItems: LinkDockItem[] = []
 ): { backup: BackupData; finalJson: string } {
   const backup: BackupData = {
     version: '2.0.0',
-    appVersion: '1.0.0',
+    appVersion: '1.0.6', // 현재 버전
     createdAt: Date.now(),
     items,
     textData,
     stylePref,
+    linkDockItems, // ✅ 링크 도크 아이템 포함
     itemCount: items.length,
     totalSize: 0,
   };
@@ -115,7 +119,7 @@ export async function importFromJSON(): Promise<BackupData | null> {
   return new Promise((resolve) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.json';
+    input.accept = '.dingle,.json'; // ✅ .dingle과 .json 모두 허용
     input.style.display = 'none';
 
     input.onchange = async (e) => {
@@ -131,11 +135,11 @@ export async function importFromJSON(): Promise<BackupData | null> {
 
         // 버전 체크
         if (!backup.version || !backup.items) {
-          throw new Error('Invalid backup file');
+          throw new Error('올바른 백업 파일이 아닙니다.');
         }
 
         console.log('✅ Backup loaded:', file.name);
-        console.log('📅 Created:', new Date(backup.createdAt).toLocaleString());
+        console.log('📅 Created:', new Date(backup.createdAt).toLocaleString('ko-KR'));
         console.log('📦 Items:', backup.itemCount);
 
         // 정리
@@ -144,7 +148,7 @@ export async function importFromJSON(): Promise<BackupData | null> {
 
       } catch (error) {
         console.error('❌ Backup load failed:', error);
-        alert('백업 파일을 읽을 수 없습니다.\n올바른 JSON 파일인지 확인하세요.');
+        alert('❌ 백업 파일을 읽을 수 없습니다.\n\n올바른 .dingle 파일인지 확인하세요.');
         document.body.removeChild(input);
         resolve(null);
       }
@@ -164,12 +168,13 @@ export async function importFromJSON(): Promise<BackupData | null> {
 // 🔄 복원 (백업 데이터 → 앱 상태)
 // ═══════════════════════════════════════════════════════
 
-export function restoreBackup(
+export async function restoreBackup(
   backup: BackupData,
   setItems: React.Dispatch<React.SetStateAction<ScrapItem[]>>,
   setTextData: React.Dispatch<React.SetStateAction<LayoutTextData>>,
-  setDiaryStyle: React.Dispatch<React.SetStateAction<DiaryStyle>>
-): void {
+  setDiaryStyle: React.Dispatch<React.SetStateAction<DiaryStyle>>,
+  setLinkDockItems?: React.Dispatch<React.SetStateAction<LinkDockItem[]>>
+): Promise<void> {
   try {
     const migratedStyle = migrateDiaryStyle(backup.stylePref);
     const migratedItems = migrateScrapItemsDecoration(backup.items);
@@ -178,11 +183,38 @@ export function restoreBackup(
     setItems(migratedItems);
     setTextData(backup.textData);
     setDiaryStyle(migratedStyle);
+    
+    // ✅ 링크 도크 아이템 복원 (있는 경우)
+    if (backup.linkDockItems && setLinkDockItems) {
+      setLinkDockItems(backup.linkDockItems);
+    }
 
     // localStorage에도 저장
     localStorage.setItem(STORAGE_KEY, JSON.stringify(migratedItems));
     localStorage.setItem(TEXT_DATA_KEY, JSON.stringify(backup.textData));
     localStorage.setItem(STYLE_PREF_KEY, JSON.stringify(migratedStyle));
+    
+    // ✅ 링크 도크 아이템 저장
+    if (backup.linkDockItems) {
+      localStorage.setItem(LINK_DOCK_KEY, JSON.stringify(backup.linkDockItems));
+    }
+
+    // ✅ Electron 환경이면 파일에도 저장
+    if (typeof window !== 'undefined' && (window as any).electron) {
+      const { saveDiaryToFile } = await import('../services/fileStorage');
+      const result = await saveDiaryToFile(
+        migratedItems,
+        backup.textData,
+        migratedStyle,
+        backup.linkDockItems || []
+      );
+      
+      if (result.success) {
+        console.log('✅ Backup restored to file');
+      } else {
+        console.warn('⚠️ Failed to save to file:', result.error);
+      }
+    }
 
     console.log('✅ Backup restored successfully');
 
