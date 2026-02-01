@@ -94,9 +94,36 @@ async function setDisplayModeInternal(nextMode: DisplayMode) {
       overlayWin = await createWindow('overlay', { overlayGen: localGen });
       overlayWinId = overlayWin.id;
       overlayWcId = overlayWin.webContents.id;
-      console.log('[overlay] created', { winId: overlayWinId, wcId: overlayWcId, gen: overlayGen });
+      // ✅ Force center immediately after creation
+      centerOverlayWindow(overlayWin);
+      console.log('[overlay] created and centered', { winId: overlayWinId, wcId: overlayWcId, gen: overlayGen });
     } else {
-      try { overlayWin.showInactive(); } catch { try { overlayWin.show(); overlayWin.blur(); } catch { /* ignore */ } }
+      try { 
+        centerOverlayWindow(overlayWin);
+        overlayWin.showInactive();
+        // ✅ Double-check position after show
+        setTimeout(() => {
+          try {
+            if (overlayWin && !overlayWin.isDestroyed()) {
+              centerOverlayWindow(overlayWin);
+            }
+          } catch {}
+        }, 100);
+      } catch { 
+        try { 
+          centerOverlayWindow(overlayWin);
+          overlayWin.show(); 
+          overlayWin.blur();
+          // ✅ Double-check position after show
+          setTimeout(() => {
+            try {
+              if (overlayWin && !overlayWin.isDestroyed()) {
+                centerOverlayWindow(overlayWin);
+              }
+            } catch {}
+          }, 100);
+        } catch { /* ignore */ } 
+      }
     }
 
     console.log('[mode] setDisplayMode -> mini', {
@@ -183,6 +210,28 @@ function getOptimalOverlaySize() {
     width: finalWidth,
     height: finalHeight
   };
+}
+
+// ✅ Overlay 윈도우를 화면 중앙에 배치 (작업표시줄 고려)
+function centerOverlayWindow(win: BrowserWindow) {
+  try {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+    const { x: workAreaX, y: workAreaY } = primaryDisplay.workArea;
+    
+    const [windowWidth, windowHeight] = win.getSize();
+    
+    // Calculate center position
+    const x = workAreaX + Math.floor((screenWidth - windowWidth) / 2);
+    const y = workAreaY + Math.floor((screenHeight - windowHeight) / 2);
+    
+    // Force position update
+    win.setPosition(x, y, false);
+    
+    console.log('[overlay] Centered at', { x, y, windowWidth, windowHeight, screenWidth, screenHeight });
+  } catch (err) {
+    console.error('[overlay] Failed to center window:', err);
+  }
 }
 
 // overlay 기본 시작 크기(항상 이 값으로 시작)
@@ -404,6 +453,8 @@ function toggleOverlayVisibility() {
     overlayWin.hide();
     console.log('[tray] Overlay hidden');
   } else {
+    // Force recenter before showing
+    centerOverlayWindow(overlayWin);
     overlayWin.show();
     overlayWin.focus();
     console.log('[tray] Overlay shown');
@@ -416,6 +467,8 @@ function showOverlay() {
     return;
   }
 
+  // Force recenter before showing
+  centerOverlayWindow(overlayWin);
   overlayWin.show();
   overlayWin.focus();
   console.log('[tray] Overlay shown');
@@ -794,11 +847,29 @@ async function createWindow(mode: WindowMode, opts?: { overlayGen?: number }) {
   );
 
   if (mode === 'overlay') {
-    // overlay는 생성 시점부터 “현재 overlay 인스턴스” 정보를 세팅 (레이스 가드용)
+    // overlay는 생성 시점부터 "현재 overlay 인스턴스" 정보를 세팅 (레이스 가드용)
     if (localOverlayGen != null) {
       overlayWin = win;
       overlayWinId = win.id;
       overlayWcId = wcId;
+    }
+    
+    // ✅ Force correct position on ready-to-show event
+    win.once('ready-to-show', () => {
+      try {
+        centerOverlayWindow(win);
+        console.log('[overlay] Position corrected on ready-to-show');
+      } catch (err) {
+        console.error('[overlay] Failed to center on ready-to-show:', err);
+      }
+    });
+    
+    // ✅ Force position immediately after creation
+    try {
+      centerOverlayWindow(win);
+      console.log('[overlay] Position set immediately after creation');
+    } catch (err) {
+      console.error('[overlay] Failed to center after creation:', err);
     }
   }
 
@@ -1537,11 +1608,22 @@ ipcMain.handle('window:openNoteMode', async () => {
     overlayGen += 1;
     const localGen = overlayGen;
     overlayWin = await createWindow('overlay', { overlayGen: localGen });
-    console.log('[window] openNoteMode(alias): created');
+    // ✅ Force center immediately after creation
+    centerOverlayWindow(overlayWin);
+    console.log('[window] openNoteMode(alias): created and centered');
     return { created: true };
   }
+  centerOverlayWindow(overlayWin);
   overlayWin.show();
   overlayWin.focus();
+  // ✅ Double-check after show
+  setTimeout(() => {
+    try {
+      if (overlayWin && !overlayWin.isDestroyed()) {
+        centerOverlayWindow(overlayWin);
+      }
+    } catch {}
+  }, 100);
   console.log('[window] openNoteMode(alias): show/focus');
   return { created: false };
 });
@@ -1961,6 +2043,7 @@ ipcMain.handle('diary:openInOverlay', async (_event, diaryId?: string) => {
   if (overlayWin && !overlayWin.isDestroyed()) {
     // 이미 열려있으면 포커스만
     try {
+      centerOverlayWindow(overlayWin);
       overlayWin.show();
       overlayWin.focus();
     } catch (e) {
