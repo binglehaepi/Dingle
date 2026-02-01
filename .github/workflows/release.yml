@@ -20,6 +20,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
+      - name: Setup Git encoding
+        run: |
+          git config --global core.quotepath false
+          git config --global i18n.commitencoding utf-8
+          git config --global i18n.logoutputencoding utf-8
+        shell: bash
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -33,12 +40,16 @@ jobs:
         if: matrix.os == 'windows-latest'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
         run: npm run electron:build:win -- --publish always
       
       - name: Build Electron app (Linux)
         if: matrix.os == 'ubuntu-latest'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
         run: npm run electron:build:linux -- --publish always
       
       - name: Upload artifacts (Windows)
