@@ -9,7 +9,7 @@ interface UrlInputProps {
   className?: string; // Allow absolute positioning from parent
 }
 
-const UrlInput: React.FC<UrlInputProps> = ({ onScrap, onUpload, onCreateOpen, isLoading, className = '' }) => {
+const UrlInput: React.FC<UrlInputProps> = ({ onScrap, onUpload, onCreateOpen, onAddText, isLoading, className = '' }) => {
   const [url, setUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -74,13 +74,17 @@ const UrlInput: React.FC<UrlInputProps> = ({ onScrap, onUpload, onCreateOpen, is
             </button>
             <button 
                 type="button" 
-                onClick={onCreateOpen}
+                onClick={() => {
+                    if (onAddText) onAddText();
+                    else if (onCreateOpen) onCreateOpen();
+                }}
                 onTouchEnd={(e) => {
                     e.preventDefault();
-                    onCreateOpen();
+                    if (onAddText) onAddText();
+                    else if (onCreateOpen) onCreateOpen();
                 }}
                 className="text-stone-500 hover:text-stone-700 hover:bg-stone-100 active:scale-95 transition-all p-1.5 rounded-lg touch-manipulation"
-                title="Write Note"
+                title="텍스트 추가"
                 disabled={isLoading}
             >
                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -14,6 +14,9 @@ import path from 'path';
 import fs from 'fs/promises';
 import fsSync, { existsSync, mkdirSync } from 'fs';
 
+// 개발 모드 체크
+const isDev = !app.isPackaged;
+
 // ✅ 로그 파일 저장 설정
 const logPath = path.join(app.getPath('userData'), 'debug.log');
 let logStream: fsSync.WriteStream | null = null;
@@ -158,6 +161,29 @@ function isCurrentOverlayWin(win: BrowserWindow, localGen: number) {
 }
 
 console.log('[main] pid=', process.pid);
+
+// ✅ 화면 크기에 맞는 최적 Overlay 크기 계산
+// 목표: 모든 해상도에서 1100px 콘텐츠가 "작은 다이어리"처럼 보이게
+function getOptimalOverlaySize() {
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.workAreaSize;
+  
+  // 1100px 모드가 항상 여유있게 보이도록 화면의 60%로 설정
+  // 1366x768 노트북: 820x461 윈도우 → 1100px 콘텐츠가 0.745배 축소
+  // 1920x1080 모니터: 1152x648 윈도우 → 1100px 콘텐츠가 1.0배 (여유있음)
+  const targetWidth = Math.floor(width * 0.6);
+  const targetHeight = Math.floor(height * 0.6);
+  
+  const finalWidth = Math.max(targetWidth, 820);   // 최소 820px
+  const finalHeight = Math.max(targetHeight, 490);  // 최소 490px
+  
+  console.log('[overlay] Screen:', width, 'x', height, '→ Window:', finalWidth, 'x', finalHeight, `(${Math.round(finalWidth/width*100)}% x ${Math.round(finalHeight/height*100)}%)`);
+  
+  return { 
+    width: finalWidth,
+    height: finalHeight
+  };
+}
 
 // overlay 기본 시작 크기(항상 이 값으로 시작)
 // L사이즈 기준 (1500x920) - 택이 잘리지 않도록 크기 증가
@@ -514,11 +540,15 @@ function translateColorJaToKo(jaColor: string): string {
 }
 
 async function getOhaasaHoroscope(params: { date: string; sign: OhaasaSignId }) {
-  console.log('🔮 getOhaasaHoroscope 호출 - v2.0 (행운 컬러 크롤링)');
+  console.log('🔮 [OhaAsa] 호출:', { requestDate: params.date, sign: params.sign });
+  
   // date is for cache key only (official json has its own onair_date)
   const raw = await fetchOhaasaJson();
   const entry = Array.isArray(raw) ? raw[0] : raw;
   const onair = String(entry?.onair_date || '');
+  
+  console.log('📅 [OhaAsa] JSON onair_date:', onair);
+  
   if (!onair) throw new Error('OhaAsa json missing onair_date');
 
   // cache raw by day
@@ -532,12 +562,33 @@ async function getOhaasaHoroscope(params: { date: string; sign: OhaasaSignId }) 
 
   const cacheKey = `${onair}:${params.sign}`;
   const cached = ohaasaResultCache.get(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    console.log('📦 [OhaAsa] 캐시 반환:', cached);
+    return cached;
+  }
 
   const st = OHAASA_SIGN_TO_ST[params.sign];
   const detail: any[] = entry?.detail || entry?.detail?.[0]?.detail || entry?.detail || [];
   const list = Array.isArray(detail) ? detail : [];
+  
+  // ⭐ 전체 순위 출력 (디버깅)
+  console.log('📊 [OhaAsa] 전체 순위 데이터:', 
+    list.map(x => ({
+      st: x?.horoscope_st,
+      rank: x?.ranking_no,
+      sign: Object.entries(OHAASA_SIGN_TO_ST).find(([, v]) => v === x?.horoscope_st)?.[0]
+    }))
+  );
+  
   const hit = list.find((x) => String(x?.horoscope_st) === st);
+  
+  console.log('🎯 [OhaAsa] 찾은 데이터:', {
+    requestSign: params.sign,
+    st: st,
+    found: hit,
+    rank: hit?.ranking_no
+  });
+  
   if (!hit) throw new Error(`OhaAsa sign not found: ${params.sign}`);
 
   // 행운 컬러 가져오기
@@ -554,6 +605,8 @@ async function getOhaasaHoroscope(params: { date: string; sign: OhaasaSignId }) 
     luckyColorJa: jaColor,
     sourceUrl: OHAASA_SOURCE_URL,
   };
+  
+  console.log('✅ [OhaAsa] 결과 생성:', result);
   ohaasaResultCache.set(cacheKey, result);
   return result;
 }
@@ -609,11 +662,13 @@ function getWindowOptions(mode: WindowMode): Electron.BrowserWindowConstructorOp
   }
 
   if (mode === 'overlay') {
+    // ✅ 화면 크기에 맞는 최적 크기 계산
+    const { width, height } = getOptimalOverlaySize();
     return {
-      width: OVERLAY_DEFAULT_W,
-      height: OVERLAY_DEFAULT_H,
-      minWidth: 800,
-      minHeight: 600,
+      width,
+      height,
+      minWidth: 820,    // 작은 노트북 최소 크기
+      minHeight: 490,   // 작은 노트북 최소 크기
       resizable: false,
       // Windows frameless 리사이즈 보강
       thickFrame: false,
@@ -1331,6 +1386,14 @@ ipcMain.handle('ohaasa:horoscope', async (_event, params: { date: string; sign: 
   return await getOhaasaHoroscope(params);
 });
 
+ipcMain.handle('ohaasa:clearCache', async () => {
+  console.log('🗑️ [OhaAsa] Electron 캐시 클리어');
+  ohaasaCacheByDay.clear();
+  ohaasaResultCache.clear();
+  ohaasaLuckyColorCache.clear();
+  return { success: true };
+});
+
 // --- 외부 링크 열기 (no SPA navigation) ---
 ipcMain.handle('shell:openExternal', async (_event, url: string) => {
   try {
@@ -1480,9 +1543,10 @@ ipcMain.handle('window:setClickThrough', async (_e, enabled: boolean) => {
 });
 
 // 투명 영역 클릭 관통 (다이어리 영역은 클릭 가능)
+// 개발 모드에서는 비활성화 (개발자 도구 사용을 위해)
 ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  if (win) {
+  if (win && !isDev) {
     win.setIgnoreMouseEvents(ignore, options);
   }
 });

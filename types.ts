@@ -255,6 +255,7 @@ export interface ScrapMetadata {
   isEditable?: boolean; // Level 4: Fallback UI support
   sourceId?: string; // 원본 아이템 ID 추적용 (스크랩 페이지에서 사용)
   embedHtml?: string; // ⚠️ Deprecated - embed 사용
+  soundcloudEmbedUrl?: string; // SoundCloud oEmbed에서 추출한 iframe URL
 
   // ===== V2 정책 준수 필드 =====
   platform?: Platform;           // 플랫폼 식별
@@ -322,6 +323,7 @@ export interface ScrapMetadata {
     text: string;
     color?: string; // ink color
     fontSize?: string;
+    isEditing?: boolean; // 초기 편집 모드
   };
 
   /**

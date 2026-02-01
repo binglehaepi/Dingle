@@ -33,8 +33,15 @@ const YoutubeModal: React.FC<YoutubeModalProps> = ({ onConfirm, onCancel }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md animate-in fade-in zoom-in duration-200">
+    <div 
+      className="fixed inset-0 z-[20000] flex items-center justify-center p-4"
+      onClick={onCancel}
+      style={{ pointerEvents: 'auto' }}
+    >
+      <div 
+        className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md animate-in fade-in zoom-in duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-xl font-bold text-slate-800 mb-2">Create YouTube Object</h2>
         <p className="text-slate-500 text-sm mb-6">How would you like to visualize this link?</p>
 

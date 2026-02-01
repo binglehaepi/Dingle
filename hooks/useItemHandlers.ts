@@ -56,6 +56,11 @@ export function useItemHandlers({ state, isMobile, pageOffset, formatDateKey, fo
       return { w: 60, h: 60 };
     }
 
+    // 텍스트 노트: 중간 크기
+    if (type === ScrapType.NOTE) {
+      return { w: 300, h: 150 };
+    }
+
     // MVP: 링크/임베드 계열은 대체로 넓은 카드
     const p = platform?.toLowerCase();
     if (
@@ -480,6 +485,23 @@ export function useItemHandlers({ state, isMobile, pageOffset, formatDateKey, fo
     }
   };
 
+  // --- 텍스트 노트 추가 ---
+  const handleAddText = () => {
+    const metadata: ScrapMetadata = {
+      title: '',
+      url: '',
+      noteConfig: {
+        text: '',
+        isEditing: true,
+        fontSize: '14px'
+      }
+    };
+    
+    spawnItem(ScrapType.NOTE, metadata);
+    setToastMsg('📝 텍스트 추가');
+    setTimeout(() => setToastMsg(''), 1000);
+  };
+
   // --- 아이템 업데이트 ---
   const updatePosition = useCallback((id: string, newPos: Partial<ScrapPosition>) => {
     if (DBG) {
@@ -540,6 +562,7 @@ export function useItemHandlers({ state, isMobile, pageOffset, formatDateKey, fo
     handleUpload,
     addPhotoSticker,
     confirmYoutube,
+    handleAddText,
     updatePosition,
     updateMetadata,
     bringToFront,

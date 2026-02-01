@@ -142,6 +142,9 @@ async function fetchPinterestData(url: string) {
       imageUrl: data.thumbnail_url,
       url: url,
       themeColor: '#E60023',
+      platform: 'pinterest',
+      storeMode: 'safe',
+      source: { url, canonicalUrl: url },
       isEditable: false,
     };
   } catch (error) {
@@ -295,6 +298,84 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       case 'youtube':
         metadata = await fetchYoutubeData(normalizedUrl);
         break;
+        
+      case 'spotify': {
+        const spotifyMatch = normalizedUrl.match(/spotify\.com\/(track|album|playlist)\/([^?]+)/);
+        if (!spotifyMatch) {
+          throw new Error('Invalid Spotify URL');
+        }
+        const [, contentType, contentId] = spotifyMatch;
+        
+        metadata = {
+          url: normalizedUrl,
+          title: `Spotify ${contentType.charAt(0).toUpperCase() + contentType.slice(1)}`,
+          subtitle: 'Spotify',
+          description: 'Listen on Spotify',
+          imageUrl: '',
+          themeColor: '#1DB954',
+          platform: 'spotify',
+          storeMode: 'safe',
+          isEditable: false,
+          source: { 
+            url: normalizedUrl, 
+            canonicalUrl: normalizedUrl,
+            externalId: contentId 
+          },
+        };
+        break;
+      }
+      
+      case 'soundcloud': {
+        try {
+          const oembedUrl = `https://soundcloud.com/oembed?url=${encodeURIComponent(normalizedUrl)}&format=json&maxheight=166&visual=true`;
+          const response = await fetch(oembedUrl);
+          
+          if (!response.ok) throw new Error('SoundCloud oEmbed failed');
+          
+          const oembedData = await response.json();
+          
+          // oEmbed HTML에서 실제 iframe src 추출
+          const iframeSrcMatch = oembedData.html?.match(/src="([^"]+)"/);
+          const embedUrl = iframeSrcMatch?.[1] || null;
+          
+          metadata = {
+            url: normalizedUrl,
+            title: oembedData.title || 'SoundCloud Track',
+            subtitle: oembedData.author_name || 'SoundCloud',
+            description: 'Listen on SoundCloud',
+            imageUrl: oembedData.thumbnail_url || '',
+            themeColor: '#FF5500',
+            platform: 'soundcloud',
+            storeMode: 'safe',
+            isEditable: false,
+            embedHtml: embedUrl ? undefined : oembedData.html, // HTML 전체 저장 (fallback)
+            soundcloudEmbedUrl: embedUrl, // 추출한 iframe URL
+            source: { 
+              url: normalizedUrl, 
+              canonicalUrl: normalizedUrl 
+            },
+          };
+        } catch (error) {
+          console.error('SoundCloud oEmbed failed:', error);
+          // Fallback: 기본 메타데이터
+          metadata = {
+            url: normalizedUrl,
+            title: 'SoundCloud Track',
+            subtitle: 'SoundCloud',
+            description: 'Listen on SoundCloud',
+            imageUrl: '',
+            themeColor: '#FF5500',
+            platform: 'soundcloud',
+            storeMode: 'safe',
+            isEditable: false,
+            source: { 
+              url: normalizedUrl, 
+              canonicalUrl: normalizedUrl 
+            },
+          };
+        }
+        break;
+      }
         
       default:
         metadata = await fetchGeneralData(normalizedUrl);

@@ -227,6 +227,44 @@ function buildSafeMetadataLocally(url: string, type: ScrapType): ScrapMetadata {
       };
     }
 
+    // 7. Spotify
+    if (type === ScrapType.SPOTIFY || hostname.includes('spotify.com')) {
+      const spotifyMatch = url.match(/spotify\.com\/(track|album|playlist)\/([^?]+)/);
+      const contentType = spotifyMatch?.[1] || 'content';
+      const contentId = spotifyMatch?.[2];
+      
+      console.log(`✅ Spotify 감지: ${contentType} (로컬)`);
+      return {
+        title: `Spotify ${contentType.charAt(0).toUpperCase() + contentType.slice(1)}`,
+        subtitle: "Spotify",
+        description: "Listen on Spotify",
+        url: url,
+        imageUrl: '',
+        themeColor: "#1DB954",
+        platform: 'spotify',
+        storeMode: 'safe',
+        source: sourceInfoFor(contentId),
+        isEditable: false,
+      };
+    }
+
+    // 8. SoundCloud
+    if (type === ScrapType.SOUNDCLOUD || hostname.includes('soundcloud.com')) {
+      console.log(`✅ SoundCloud 감지 (로컬)`);
+      return {
+        title: "SoundCloud Track",
+        subtitle: "SoundCloud",
+        description: "Listen on SoundCloud",
+        url: url,
+        imageUrl: '',
+        themeColor: "#FF5500",
+        platform: 'soundcloud',
+        storeMode: 'safe',
+        source: sourceInfoFor(),
+        isEditable: false,
+      };
+    }
+
     // 일반 링크
     console.log(`ℹ️ 일반 링크: ${hostname}`);
     return {

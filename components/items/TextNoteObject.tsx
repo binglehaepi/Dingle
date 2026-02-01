@@ -7,10 +7,25 @@ interface TextNoteObjectProps {
   onUpdate?: (newData: Partial<ScrapMetadata>) => void;
 }
 
+// 포토샵 스타일 상수
+const TEXT_STYLES = {
+  editBg: 'rgba(255, 252, 247, 0.95)',
+  editBorder: '1px solid rgba(212, 197, 185, 0.5)',
+  editFocusBorder: '2px solid #E89BA3',
+  readBg: 'transparent',
+  readBorder: 'none',  // 완전히 투명
+  padding: '12px',
+  fontSize: '14px',
+  lineHeight: '1.8',
+  minWidth: '100px',
+  minHeight: '40px',
+};
+
 const TextNoteObject: React.FC<TextNoteObjectProps> = ({ data, onDelete, onUpdate }) => {
   const [text, setText] = useState(data.noteConfig?.text || "");
   const [isEditing, setIsEditing] = useState(data.noteConfig?.isEditing || false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const saveTimerRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -20,32 +35,45 @@ const TextNoteObject: React.FC<TextNoteObjectProps> = ({ data, onDelete, onUpdat
     }
   }, [isEditing]);
 
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleTextChange = (newText: string) => {
     setText(newText);
-    // 실시간으로 메타데이터 업데이트
-    if (onUpdate) {
-      onUpdate({
-        noteConfig: {
-          ...data.noteConfig,
-          text: newText,
-          fontSize: data.noteConfig?.fontSize || '14px'
-        }
-      });
+    
+    // 0.5초 debounce로 자동 저장
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
     }
+    
+    saveTimerRef.current = setTimeout(() => {
+      if (onUpdate) {
+        onUpdate({
+          noteConfig: {
+            ...data.noteConfig,
+            text: newText,
+            fontSize: data.noteConfig?.fontSize || '14px',
+            isEditing: false,
+          }
+        });
+      }
+    }, 500);
   };
 
   const handleBlur = () => {
     setIsEditing(false);
-    // 텍스트가 비어있으면 삭제
-    if (!text.trim() && onDelete) {
-      onDelete();
-      return;
-    }
-    // isEditing 플래그 제거 (초기 생성용이므로 한번만 사용)
+    // 빈 텍스트도 저장 가능 (삭제는 × 버튼으로만)
+    // isEditing 플래그 제거
     if (onUpdate && data.noteConfig?.isEditing) {
       onUpdate({
         noteConfig: {
           ...data.noteConfig,
+          text,
           isEditing: false
         }
       });
@@ -54,61 +82,60 @@ const TextNoteObject: React.FC<TextNoteObjectProps> = ({ data, onDelete, onUpdat
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log('📝 텍스트 노트 클릭 - 편집 모드로 전환');
     setIsEditing(true);
   };
 
-  // Dynamic font sizing based on length roughly, or fixed.
-  // Using user config if available
-  const fontSize = data.noteConfig?.fontSize || '14px';
-  const fontSizeStyle = fontSize.endsWith('px') ? { fontSize } : undefined;
-  const fontSizeClass = !fontSizeStyle 
-    ? (fontSize === 'large' ? 'text-4xl' : fontSize === 'small' ? 'text-lg' : 'text-base')
-    : '';
-
   return (
     <div 
-        className="min-w-[150px] min-h-[24px] relative group cursor-text"
+        className="w-full h-full cursor-text"
         onClick={handleClick}
     >
         {isEditing ? (
              <textarea 
                 ref={textareaRef}
                 value={text}
-                onChange={(e) => handleTextChange(e.target.value)}
+                onChange={(e) => {
+                  const newText = e.target.value;
+                  if (newText.length <= 10000) {
+                    handleTextChange(newText);
+                  }
+                }}
                 onBlur={handleBlur}
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
-                placeholder="텍스트를 입력하세요"
-                className={`
-                    w-full h-auto min-w-[150px] min-h-[24px] bg-white/90 resize-none
-                    border-2 border-blue-400 rounded-lg outline-none shadow-sm
-                    ${fontSizeClass} leading-relaxed
-                    overflow-hidden p-2
-                `}
-                style={{ 
-                  height: textareaRef.current ? `${Math.max(textareaRef.current.scrollHeight, 24)}px` : '24px',
+                placeholder="여기에 메모를 작성하세요..."
+                className="w-full h-full resize-none outline-none"
+                style={{
+                  background: TEXT_STYLES.editBg,
+                  border: TEXT_STYLES.editBorder,
+                  borderRadius: '4px',
+                  padding: TEXT_STYLES.padding,
+                  fontSize: TEXT_STYLES.fontSize,
+                  lineHeight: TEXT_STYLES.lineHeight,
                   fontFamily: 'var(--app-font, "Noto Sans KR", sans-serif)',
-                  color: '#000',
-                  caretColor: '#3b82f6',
-                  ...fontSizeStyle
+                  color: 'var(--text-color-primary, #000)',
+                  minWidth: TEXT_STYLES.minWidth,
+                  minHeight: TEXT_STYLES.minHeight,
                 }}
              />
         ) : (
             <div 
-              className={`
-                ${fontSizeClass} leading-relaxed whitespace-pre-wrap px-1 py-0.5 min-h-[24px]
-                cursor-text
-                border border-transparent group-hover:border-dashed group-hover:border-slate-300 rounded transition-all
-                bg-transparent group-hover:bg-slate-50/30
-              `}
+              className="w-full h-full"
               style={{
+                background: TEXT_STYLES.readBg,
+                border: TEXT_STYLES.readBorder,
+                padding: TEXT_STYLES.padding,
+                fontSize: TEXT_STYLES.fontSize,
+                lineHeight: TEXT_STYLES.lineHeight,
                 fontFamily: 'var(--app-font, "Noto Sans KR", sans-serif)',
-                color: 'inherit',
-                ...fontSizeStyle
+                color: 'var(--text-color-primary, #000)',
+                minWidth: TEXT_STYLES.minWidth,
+                minHeight: TEXT_STYLES.minHeight,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
               }}
             >
-                {text || "텍스트를 입력하세요"}
+                {text || '텍스트를 입력하세요'}
             </div>
         )}
     </div>

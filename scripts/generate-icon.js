@@ -2,8 +2,10 @@ const fs = require('fs');
 const path = require('path');
 
 const WEBP_PATH = path.join(__dirname, '../public/coconut_brown_460.webp');
-const OUTPUT_PATH = path.join(__dirname, '../build/icon.png');
-const ICON_SIZE = 1024;
+const BUILD_DIR = path.join(__dirname, '../build');
+
+// 생성할 아이콘 크기들
+const ICON_SIZES = [16, 32, 48, 64, 128, 256, 1024];
 
 async function generateIcon() {
   try {
@@ -26,29 +28,45 @@ async function generateIcon() {
       sharp = require('sharp');
     }
     
-    // WEBP를 PNG로 변환 (1024x1024, 흰색 배경)
-    await sharp(WEBP_PATH)
-      .resize(ICON_SIZE, ICON_SIZE, {
-        fit: 'contain',
-        background: { r: 255, g: 255, b: 255, alpha: 1 }
-      })
-      .png()
-      .toFile(OUTPUT_PATH);
+    // build 디렉토리 확인
+    if (!fs.existsSync(BUILD_DIR)) {
+      fs.mkdirSync(BUILD_DIR, { recursive: true });
+    }
     
-    console.log(`✅ 아이콘 생성 완료: ${OUTPUT_PATH}`);
-    console.log(`📦 크기: ${ICON_SIZE}x${ICON_SIZE}`);
+    // 각 크기별로 아이콘 생성
+    for (const size of ICON_SIZES) {
+      const outputPath = path.join(BUILD_DIR, `icon-${size}.png`);
+      
+      await sharp(WEBP_PATH)
+        .resize(size, size, {
+          fit: 'contain',
+          background: { r: 0, g: 0, b: 0, alpha: 0 } // 투명 배경
+        })
+        .png()
+        .toFile(outputPath);
+      
+      console.log(`✅ ${size}x${size} 아이콘 생성: icon-${size}.png`);
+    }
+    
+    // icon.png (1024x1024)를 메인 아이콘으로 복사
+    const mainIconPath = path.join(BUILD_DIR, 'icon.png');
+    fs.copyFileSync(path.join(BUILD_DIR, 'icon-1024.png'), mainIconPath);
+    console.log(`✅ 메인 아이콘 생성: icon.png`);
+    
+    console.log('');
+    console.log('🎉 모든 아이콘 생성 완료!');
     console.log('');
     console.log('다음 단계:');
-    console.log('1. 앱 재시작하여 트레이 아이콘 확인');
-    console.log('2. electron-builder로 빌드하면 .ico/.icns 자동 생성');
+    console.log('1. node scripts/generate-icon-ico-final.js (Windows ICO 생성)');
+    console.log('2. npm run electron:build:win (빌드)');
     
   } catch (error) {
     console.error('❌ 아이콘 생성 실패:', error.message);
     console.log('');
     console.log('대안: 수동 변환');
     console.log('1. public/coconut_brown_460.webp를 이미지 편집기로 열기');
-    console.log('2. 1024x1024 PNG로 저장');
-    console.log('3. build/icon.png로 복사');
+    console.log('2. 각 크기별로 PNG로 저장');
+    console.log('3. build/ 디렉토리로 복사');
     process.exit(1);
   }
 }

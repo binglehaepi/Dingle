@@ -193,6 +193,7 @@ const AppMain: React.FC = () => {
     handleScrap: itemHandlers.handleScrap,
     handleUpload: itemHandlers.handleUpload,
     handleCreateManual: itemHandlers.handleCreateManual,
+    handleAddText: itemHandlers.handleAddText,
     handleDateChange: layoutHandlers.handleDateChange,
     handleMonthSelect: layoutHandlers.handleMonthSelect,
     handleDateClick: layoutHandlers.handleDateClick,

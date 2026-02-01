@@ -152,17 +152,30 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
   const handleCdClick = (e: React.MouseEvent | React.TouchEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      console.log('💿 [CD Player] CD 클릭됨');
+      console.log('💿 [CD Player] videoId:', videoId);
+      console.log('💿 [CD Player] music.videoId:', music.videoId);
+      console.log('💿 [CD Player] music.isPlaying:', music.isPlaying);
+      
       if (!videoId) {
+          console.log('💿 [CD Player] videoId 없음, 커버 사진 변경');
           musicCoverInputRef.current?.click();
       } else {
           // If different track is selected, switch then play
           if (music.videoId !== videoId) {
+              console.log('💿 [CD Player] 다른 트랙 선택됨, 변경 후 재생');
               music.setTrack(videoId);
               music.play();
           } else {
+              console.log('💿 [CD Player] 같은 트랙, 토글');
               music.toggle();
           }
       }
+      console.log('💿 [CD Player] 처리 후 MusicStore 상태:', { 
+          provider: music.provider, 
+          videoId: music.videoId, 
+          isPlaying: music.isPlaying 
+      });
   };
 
   // D-Day Logic
@@ -193,15 +206,24 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
   const handleLinkSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'Enter') {
           const url = (e.target as HTMLInputElement).value;
+          console.log('🎵 [CD Player] 링크 입력:', url);
           onUpdateText(dashboardKey, 'musicUrl', url);
           
           const id = getVideoId(url);
+          console.log('🎵 [CD Player] Video ID 추출:', id);
           if (id) {
               const thumbUrl = `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
               onUpdateText(dashboardKey, 'photoUrl', thumbUrl);
               // ✅ 전역 MusicStore에 트랙 설정 및 재생
+              console.log('🎵 [CD Player] music.setTrack 호출:', id);
               music.setTrack(id);
+              console.log('🎵 [CD Player] music.play 호출');
               music.play();
+              console.log('🎵 [CD Player] MusicStore 상태:', { 
+                  provider: music.provider, 
+                  videoId: music.videoId, 
+                  isPlaying: music.isPlaying 
+              });
           } else if (url.trim()) {
               // 올바르지 않은 URL
               alert('올바른 YouTube URL을 입력해주세요.\n예: https://youtube.com/watch?v=...');
@@ -215,12 +237,29 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
     setOhaasaError('');
     const todayKey = formatDateKey(new Date());
     const cacheKey = `dingel:ohaasa:cache:${todayKey}:${ohaasaSign}`;
+    
+    // ⭐ force 옵션이면 캐시 삭제
+    if (opts?.force) {
+      console.log('🔄 [OhaAsa] 캐시 강제 클리어');
+      localStorage.removeItem(cacheKey);
+      // Electron 캐시도 클리어 요청
+      if (typeof window !== 'undefined' && (window as any).electron?.clearOhaasaCache) {
+        try {
+          await (window as any).electron.clearOhaasaCache();
+        } catch (e) {
+          console.warn('Electron 캐시 클리어 실패:', e);
+        }
+      }
+    }
+    
+    // 캐시 확인 (force가 아닐 때만)
     if (!opts?.force) {
       try {
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
           const parsed = JSON.parse(cached) as OhaasaResult;
           if (parsed?.rank) {
+            console.log('📦 [OhaAsa] 캐시 사용:', parsed);
             setOhaasaResult(parsed);
             return;
           }
@@ -232,14 +271,17 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
 
     setOhaasaLoading(true);
     try {
+      console.log('🌐 [OhaAsa] API 호출 시작:', { date: todayKey, sign: ohaasaSign });
       const result = await fetchOhaasa({ date: todayKey, sign: ohaasaSign });
+      console.log('✅ [OhaAsa] API 응답:', result);
       setOhaasaResult(result);
       try {
         localStorage.setItem(cacheKey, JSON.stringify(result));
       } catch {
         // ignore
       }
-    } catch {
+    } catch (err) {
+      console.error('❌ [OhaAsa] API 실패:', err);
       setOhaasaError('불러오기 실패');
       setOhaasaResult(null);
     } finally {
@@ -843,7 +885,13 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                                 handleOhaasaFetch({ force: false });
                               }
                             }}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              console.log('🔄 강제 새로고침 (더블클릭)');
+                              handleOhaasaFetch({ force: true });
+                            }}
                             disabled={ohaasaLoading}
+                            title="더블클릭: 강제 새로고침"
                           >
                             {ohaasaLoading ? '확인 중...' : '순위 확인'}
                           </button>
@@ -859,8 +907,15 @@ const MonthlySpread: React.FC<MonthlySpreadProps> = ({
                           ) : (
                             // 순위가 있으면 순위 + 행운 컬러 표시
                             <>
-                              <div className="text-lg font-bold" style={{ color: 'inherit' }}>
-                                {ohaasaResult.rank}위
+                              <div className="flex flex-col items-center gap-0">
+                                <div className="text-lg font-bold leading-tight" style={{ color: 'inherit' }}>
+                                  {ohaasaResult.rank}위
+                                </div>
+                                {ohaasaResult.date && (
+                                  <div className="text-[9px] opacity-60" style={{ color: 'inherit' }}>
+                                    ({ohaasaResult.date.slice(5).replace('-', '/')} 기준)
+                                  </div>
+                                )}
                               </div>
                               {ohaasaResult.luckyColor && (
                                 <div className="flex items-center gap-1">

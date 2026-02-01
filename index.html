@@ -145,12 +145,33 @@
 
         /* 일요일 텍스트(기본: danger 계열) */
         --ui-sunday-text: var(--ui-danger-bg);
+      }
 
-        /* ======================================================
+      /* ======================================================
+         ✅ 반응형 스케일링 시 선명도 유지
+         ====================================================== */
+      .overlayViewport,
+      .overlayViewport * {
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      /* Transform 스케일 시 블러 방지 */
+      .overlayViewport {
+        backface-visibility: hidden;
+        -webkit-backface-visibility: hidden;
+        transform-style: preserve-3d;
+        -webkit-transform-style: preserve-3d;
+      }
+
+      /* ======================================================
            ✅ 레거시 호환 별칭 (남아있는 구형 코드 깨짐 방지)
-           - 구형 변수는 “신규 변수”를 가리키게만 해둠
+           - 구형 변수는 "신규 변수"를 가리키게만 해둠
            - 점차 사용처를 제거해가면 됨
            ====================================================== */
+      :root {
         --desk-bg: var(--app-background);
         --paper-bg: var(--note-paper-background);
         --border-color: var(--widget-border-color);

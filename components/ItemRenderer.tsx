@@ -11,6 +11,8 @@ import VideoPlayerObject from './items/VideoPlayerObject';
 import FashionTag from './items/FashionTag';
 import EditableScrap from './items/EditableScrap';
 import MediaCard from './items/MediaCard';
+import SpotifyEmbedObject from './items/SpotifyEmbedObject';
+import SoundCloudEmbedObject from './items/SoundCloudEmbedObject';
 import ChatPhoneObject from './items/ChatPhoneObject';
 import TicketObject from './items/TicketObject';
 import BoardingPassObject from './items/BoardingPassObject';
@@ -102,10 +104,10 @@ export const ItemRenderer: React.FC<ItemRendererProps> = ({ item, onUpdateMetada
         : <VideoPlayerObject data={item.metadata} />;
     
     case ScrapType.SPOTIFY:
-      return <MediaCard data={item.metadata} />;
+      return <SpotifyEmbedObject data={item.metadata} />;
     
     case ScrapType.SOUNDCLOUD:
-      return <MediaCard data={item.metadata} />;
+      return <SoundCloudEmbedObject data={item.metadata} />;
     
     case ScrapType.TIKTOK:
       return <MediaCard data={item.metadata} />;

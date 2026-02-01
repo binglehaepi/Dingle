@@ -112,9 +112,10 @@ export default function EmbedPreviewModal({ isOpen, url, title, onClose }: Embed
 
   const modal = (
     <div
-      className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/30"
+      className="fixed inset-0 z-[20000] flex items-center justify-center"
       onClick={onClose}
       data-embed-preview-modal
+      style={{ pointerEvents: 'auto' }}
     >
       <div
         className="w-[900px] max-w-[92vw] h-[80vh] border rounded-xl shadow-2xl overflow-hidden flex flex-col"

@@ -61,6 +61,7 @@ interface DesktopAppProps {
   handleScrap: (url: string) => Promise<void>;
   handleUpload: (file: File) => Promise<void>;
   handleCreateManual: any;
+  handleAddText: () => void;
   handleDateChange: (days: number) => void;
   handleMonthSelect: (monthIndex: number) => void;
   handleDateClick: (date: Date) => void;
@@ -106,6 +107,23 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
   const [isInteracting, setIsInteracting] = useState(false);
   const DBG = !!import.meta.env.DEV && (typeof window !== 'undefined') && ((window as any).__DSD_DEBUG_DRAG ?? true);
   const pageSideDbgRef = useRef<{ lastRateTs: number; windowCalls: number }>({ lastRateTs: 0, windowCalls: 0 });
+
+  // ✅ 최소 화면 크기 경고 (1회만)
+  useEffect(() => {
+    const checkScreenSize = () => {
+      if (window.innerWidth < 1000 || window.innerHeight < 750) {
+        const warned = localStorage.getItem('screen-size-warned');
+        if (!warned) {
+          console.warn('⚠️ 화면이 너무 작습니다. 최소 1000x750을 권장합니다.');
+          localStorage.setItem('screen-size-warned', 'true');
+        }
+      }
+    };
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   // 링크 카드 클릭 confirm/더블클릭 모달 오동작 방지용 전역 플래그
   useEffect(() => {
@@ -159,6 +177,7 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
     handleScrap,
     handleUpload,
     handleCreateManual,
+    handleAddText,
     handleDateChange,
     handleMonthSelect,
     handleDateClick,
@@ -607,6 +626,10 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
             }
           }}
           onMouseLeave={() => {
+            // 모달이 열려있으면 클릭 스루 비활성화
+            if (pendingYoutube || showCreationModal) {
+              return;
+            }
             // 투명 영역으로 마우스 이동 시 클릭 관통
             if (window.electron?.send) {
               window.electron.send('set-ignore-mouse-events', true, { forward: true });
@@ -673,12 +696,15 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                   return;
                 }
                 
+                // 🔧 링크바(UrlInput) 클릭은 무시 (버튼 클릭 허용)
+                if (target.closest('[data-ui="linkbar"]')) {
+                  return;
+                }
+                
                 // ✅ 스크랩 아이템이 아닌 곳 클릭 시 선택 해제
                 const isScrapItem = !!target.closest('[data-scrap-item]');
-                console.log('🖱️ 클릭 체크:', { isScrapItem, selectedItemId, target: target.className });
                 
                 if (!isScrapItem && selectedItemId) {
-                  console.log('✅ 배경 클릭 - 선택 해제 실행');
                   setSelectedItemId(null);
                 }
                 
@@ -772,7 +798,8 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                 <UrlInput 
                   onScrap={handleScrap} 
                   onUpload={handleUpload} 
-                  onCreateOpen={undefined}
+                  onCreateOpen={() => setShowCreationModal(true)}
+                  onAddText={handleAddText}
                   isLoading={loading}
                   className="absolute top-5 right-8" 
                 />

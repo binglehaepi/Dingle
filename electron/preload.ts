@@ -57,6 +57,7 @@ contextBridge.exposeInMainWorld('electron', {
 
   // --- OhaAsa Horoscope ---
   ohaasaHoroscope: (params: { date: string; sign: string }) => ipcRenderer.invoke('ohaasa:horoscope', params),
+  clearOhaasaCache: () => ipcRenderer.invoke('ohaasa:clearCache'),
 
   // --- 외부 링크 열기 ---
   openExternal: (url: string) => ipcRenderer.invoke('shell:openExternal', url),
@@ -251,6 +252,7 @@ export interface ElectronAPI {
     textKo?: string;
     sourceUrl: string;
   }>;
+  clearOhaasaCache: () => Promise<{ success: boolean }>;
 
   // 외부 링크
   openExternal: (url: string) => Promise<{ success: boolean; error?: string }>;

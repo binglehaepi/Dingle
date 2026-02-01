@@ -220,8 +220,15 @@ const CreationModal: React.FC<CreationModalProps> = ({ onConfirm, onCancel }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-[20000] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+    <div 
+      className="fixed inset-0 z-[20000] flex items-center justify-center p-4"
+      onClick={onCancel}
+      style={{ pointerEvents: 'auto' }}
+    >
+      <div 
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header Tabs */}
         <div className="flex bg-slate-100 p-1 rounded-t-2xl overflow-x-auto scrollbar-hide">
             {(['ticket', 'boarding', 'receipt', 'toploader', 'cupsleeve', 'fashion', 'note', 'gif'] as const).map(tab => (

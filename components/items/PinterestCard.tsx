@@ -7,7 +7,7 @@ interface PinterestCardProps {
 }
 
 const PinterestCard: React.FC<PinterestCardProps> = ({ data }) => {
-  const [useWidget, setUseWidget] = useState(false);
+  const [useWidget, setUseWidget] = useState(true);
 
   // Strategy A: Custom Polaroid/Moodboard UI
   if (!useWidget) {

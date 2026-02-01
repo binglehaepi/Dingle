@@ -12,13 +12,26 @@ const PersistentYouTubePlayer: React.FC = () => {
   const music = useMusicStore();
   const playerRef = useRef<any>(null);
   const lastVideoIdRef = useRef<string | null>(null);
+  const initialVideoIdRef = useRef<string | null>(null);
 
   const onReady: YouTubeProps['onReady'] = (event) => {
+    console.log('🎬 [YouTube Player] onReady 호출됨');
     playerRef.current = event.target;
     try {
       event.target.setVolume(music.volume);
-    } catch {
-      // ignore
+      console.log('🎬 [YouTube Player] 볼륨 설정:', music.volume);
+    } catch (err) {
+      console.error('🎬 [YouTube Player] 볼륨 설정 실패:', err);
+    }
+    
+    // ⭐ onReady 시점에 이미 isPlaying=true면 즉시 재생
+    if (music.isPlaying && music.provider === 'youtube' && music.videoId) {
+      console.log('🎬 [YouTube Player] onReady 시점에 재생 요청됨, 즉시 재생');
+      try {
+        event.target.playVideo?.();
+      } catch (err) {
+        console.error('🎬 [YouTube Player] onReady에서 재생 실패:', err);
+      }
     }
   };
 
@@ -47,44 +60,90 @@ const PersistentYouTubePlayer: React.FC = () => {
 
   // When track changes, cue/load it
   useEffect(() => {
+    console.log('🎬 [YouTube Player] Track 변경 감지:', { provider: music.provider, videoId: music.videoId, isPlaying: music.isPlaying });
     const p = playerRef.current;
-    if (!p) return;
+    if (!p) {
+      console.log('🎬 [YouTube Player] playerRef 없음');
+      return;
+    }
 
     const next = music.provider === 'youtube' ? music.videoId : null;
     if (!next) {
+      console.log('🎬 [YouTube Player] next videoId 없음, 정지');
       try {
         p.stopVideo?.();
-      } catch {
-        // ignore
+      } catch (err) {
+        console.error('🎬 [YouTube Player] stopVideo 실패:', err);
       }
       lastVideoIdRef.current = null;
       return;
     }
 
-    if (lastVideoIdRef.current === next) return;
+    if (lastVideoIdRef.current === next) {
+      console.log('🎬 [YouTube Player] 동일한 videoId, 스킵');
+      return;
+    }
     lastVideoIdRef.current = next;
 
+    console.log('🎬 [YouTube Player] 새로운 videoId 로드:', next, '재생 상태:', music.isPlaying);
     try {
-      // cue first (no autoplay), then follow isPlaying effect
-      if (p.cueVideoById) p.cueVideoById(next);
-      else if (p.loadVideoById) p.loadVideoById(next);
-    } catch {
-      // ignore
+      // ⭐ isPlaying이 true면 loadVideoById로 자동 재생
+      if (music.isPlaying) {
+        console.log('🎬 [YouTube Player] loadVideoById 호출 (자동 재생)');
+        if (p.loadVideoById) {
+          p.loadVideoById(next);
+        } else if (p.cueVideoById) {
+          p.cueVideoById(next);
+          // cueVideoById 후 명시적으로 재생
+          setTimeout(() => {
+            try {
+              p.playVideo?.();
+              console.log('🎬 [YouTube Player] cueVideoById 후 playVideo 호출');
+            } catch (err) {
+              console.error('🎬 [YouTube Player] playVideo 실패:', err);
+            }
+          }, 100);
+        }
+      } else {
+        // ⭐ isPlaying이 false면 cueVideoById로 로드만
+        console.log('🎬 [YouTube Player] cueVideoById 호출 (로드만)');
+        if (p.cueVideoById) {
+          p.cueVideoById(next);
+        } else if (p.loadVideoById) {
+          p.loadVideoById(next);
+        }
+      }
+      console.log('🎬 [YouTube Player] 비디오 로드 성공');
+    } catch (err) {
+      console.error('🎬 [YouTube Player] 비디오 로드 실패:', err);
     }
-  }, [music.provider, music.videoId]);
+  }, [music.provider, music.videoId, music.isPlaying]);
 
   // Play/pause changes
   useEffect(() => {
+    console.log('🎬 [YouTube Player] Play/Pause 변경:', music.isPlaying);
     const p = playerRef.current;
-    if (!p) return;
+    if (!p) {
+      console.log('🎬 [YouTube Player] playerRef 없음');
+      return;
+    }
     const hasTrack = music.provider === 'youtube' && !!music.videoId;
-    if (!hasTrack) return;
+    if (!hasTrack) {
+      console.log('🎬 [YouTube Player] 트랙 없음');
+      return;
+    }
 
     try {
-      if (music.isPlaying) p.playVideo?.();
-      else p.pauseVideo?.();
-    } catch {
-      // ignore
+      if (music.isPlaying) {
+        console.log('🎬 [YouTube Player] playVideo 호출');
+        p.playVideo?.();
+      }
+      else {
+        console.log('🎬 [YouTube Player] pauseVideo 호출');
+        p.pauseVideo?.();
+      }
+    } catch (err) {
+      console.error('🎬 [YouTube Player] play/pause 실패:', err);
     }
   }, [music.isPlaying, music.provider, music.videoId]);
 
@@ -100,27 +159,38 @@ const PersistentYouTubePlayer: React.FC = () => {
   }, [music.volume]);
 
   // Render only once we have a track (keeps single iframe)
-  if (music.provider !== 'youtube' || !music.videoId) return null;
+  if (music.provider !== 'youtube' || !music.videoId) {
+    console.log('🎬 [YouTube Player] 렌더링하지 않음:', { provider: music.provider, videoId: music.videoId });
+    return null;
+  }
+  
+  // ⭐ 첫 번째 videoId를 저장 (iframe 재생성 방지)
+  if (!initialVideoIdRef.current) {
+    initialVideoIdRef.current = music.videoId;
+  }
+  
+  console.log('🎬 [YouTube Player] 렌더링 중:', { initialVideoId: initialVideoIdRef.current, currentVideoId: music.videoId });
 
   return (
     <div
       data-ui="persistent-youtube-player"
       style={{
         position: 'fixed',
-        width: 1,
-        height: 1,
+        bottom: 0,
+        right: 0,
+        width: '200px',
+        height: '200px',
         opacity: 0,
         pointerEvents: 'none',
-        left: -9999,
-        top: -9999,
+        zIndex: -1,
       }}
     >
       <YouTube
-        videoId={music.videoId}
+        videoId={initialVideoIdRef.current}
         opts={{
           host: 'https://www.youtube.com',
-          height: '1',
-          width: '1',
+          height: '200',
+          width: '200',
           playerVars: {
             autoplay: 0,
             controls: 0,
