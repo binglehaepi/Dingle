@@ -808,3 +808,4 @@ export default {
 **작성자**: AI Assistant (Claude Sonnet 4.5)
 
 
+

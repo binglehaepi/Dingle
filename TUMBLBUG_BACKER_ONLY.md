@@ -349,3 +349,4 @@ Get-Item ..\Dingle_v1.3.0_Backers_Only.zip | Select-Object Name, @{Name="Size (M
 - 앱 실행 시 인증
 - 자동 업데이트도 인증된 사용자만
 
+

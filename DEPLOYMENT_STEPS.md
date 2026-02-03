@@ -363,3 +363,4 @@ https://github.com/binglehaepi/Dingle/releases/tag/v1.3.0
 - 텀블벅에서만 **링크 안내** (후원자 전용)
 - "후원자 우선 제공" 모델
 
+

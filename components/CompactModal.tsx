@@ -70,3 +70,4 @@ export default function CompactModal({ isOpen, onClose, title, children, positio
   );
 }
 
+

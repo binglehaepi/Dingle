@@ -229,3 +229,4 @@ C:\Users\[사용자명]\AppData\Local\dingle\debug.log
 - **이슈**: https://github.com/binglehaepi/Dingle/issues
 - **이메일**: [이메일 주소 추가]
 
+

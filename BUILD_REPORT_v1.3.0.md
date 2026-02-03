@@ -274,3 +274,4 @@ Compress-Archive -Path release\* -DestinationPath Dingle_v1.3.0_Windows.zip
 
 🎉 **축하합니다! Dingle v1.3.0 빌드가 완료되었습니다!**
 
+

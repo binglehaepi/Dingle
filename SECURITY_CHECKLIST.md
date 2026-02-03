@@ -248,3 +248,4 @@ Windows: C:\Users\[사용자]\AppData\Local\dingle
 **배포 승인**: ✅  
 **날짜**: 2026년 2월 1일
 
+
