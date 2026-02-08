@@ -1719,9 +1719,10 @@ ipcMain.on('overlay:uiReady', (e) => {
 // --- 다이얼로그 ---
 
 ipcMain.handle('dialog:showSave', async (_event, options) => {
-  if (!appWin) return { canceled: true };
+  const win = appWin || overlayWin;
+  if (!win) return { canceled: true };
 
-  const result = await dialog.showSaveDialog(appWin, {
+  const result = await dialog.showSaveDialog(win, {
     defaultPath: options?.defaultPath || path.join(getDiaryDir(), `export-${Date.now()}.json`),
     filters: options?.filters || [
       { name: 'JSON Files', extensions: ['json'] },
@@ -1733,9 +1734,10 @@ ipcMain.handle('dialog:showSave', async (_event, options) => {
 });
 
 ipcMain.handle('dialog:showOpen', async (_event, options) => {
-  if (!appWin) return { canceled: true };
+  const win = appWin || overlayWin;
+  if (!win) return { canceled: true };
 
-  const result = await dialog.showOpenDialog(appWin, {
+  const result = await dialog.showOpenDialog(win, {
     filters: options?.filters || [
       { name: 'JSON Files', extensions: ['json'] },
       { name: 'All Files', extensions: ['*'] }

@@ -20,6 +20,7 @@ import ExportPDFDialog from './ExportPDFDialog';
 import PaletteEditorModal from './PaletteEditorModal';
 // import LinkDecorationPanel from './LinkDecorationPanel'; // 제거됨
 import EmbedPreviewModal from './EmbedPreviewModal';
+import ExportHTMLDialog from './ExportHTMLDialog';
 import SettingsPanel from './panels/SettingsPanel';
 import UIPanel from './panels/UIPanel';
 import { EMBED_PREVIEW_EVENT, type EmbedPreviewOpenDetail } from '../utils/embedPreview';
@@ -148,6 +149,9 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
   
   // 팔레트 편집 모달
   const [showPaletteEditor, setShowPaletteEditor] = useState(false);
+  
+  // ✅ HTML 내보내기 다이얼로그
+  const [showExportHTMLDialog, setShowExportHTMLDialog] = useState(false);
 
   const {
     items,
@@ -544,6 +548,9 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
                     onClose={() => setActivePanel(null)}
                     onExportPDF={() => {
                       setShowPDFDialog(true);
+                    }}
+                    onExportHTML={() => {
+                      setShowExportHTMLDialog(true);
                     }}
                     onOpenBackup={onOpenBackup}
                     onManualSave={handleSaveLayout}
@@ -1282,6 +1289,16 @@ const DesktopApp: React.FC<DesktopAppProps> = (props) => {
         isOpen={showExportOptions}
         onClose={() => setShowExportOptions(false)}
         onExport={handleExportWithOptions}
+      />
+      
+      {/* HTML Export Dialog */}
+      <ExportHTMLDialog
+        isOpen={showExportHTMLDialog}
+        onClose={() => setShowExportHTMLDialog(false)}
+        items={items}
+        textData={textData}
+        diaryStyle={diaryStyle}
+        linkDockItems={linkDockItems}
       />
       
       {/* PDF Export Dialog */}
